@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 process.env.PORT = '0';
-process.env.DB_PATH = ':memory:';
+process.env.DB_PATH ??= ":memory:";
 const { server } = await import('./index.js');
 await new Promise((r) => server.listening ? r() : server.once('listening', r));
 const base = `http://localhost:${server.address().port}`;

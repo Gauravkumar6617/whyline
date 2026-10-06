@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 process.env.PORT = '0';
-process.env.DB_PATH = ':memory:';
+process.env.DB_PATH ??= ":memory:";
 const { server } = await import('../server/index.js');
 await new Promise((r) => server.listening ? r() : server.once('listening', r));
 const url = `http://localhost:${server.address().port}`;
