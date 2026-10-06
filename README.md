@@ -16,7 +16,7 @@ which commit, which agent. Live at https://whyline.wrklyst.com.
 3. Capture AI work:
    - **Claude Code** (prompts + every file edit):
      ```
-     /plugin marketplace add <github-user>/whyline
+     /plugin marketplace add Gauravkumar6617/whyline
      /plugin install whyline@whyline
      ```
    - **Any agent** (Cursor, Copilot, Codex, ...): run `whyline init` in each repo. Every commit is
