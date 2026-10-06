@@ -1,7 +1,7 @@
 {
   "name": "whyline",
   "version": "0.1.0",
-  "description": "Record what AI coding agents change: prompts, edits, commits.",
+  "description": "git blame tells you who. Whyline tells you why. Audit trail for AI-written code.",
   "type": "module",
   "engines": {
     "node": ">=22.13"
@@ -18,12 +18,21 @@
   },
   "packageManager": "pnpm@12.4.2",
   "keywords": [
-    "ai",
-    "audit",
+    "ai-agents",
+    "audit-trail",
+    "ai-governance",
+    "code-provenance",
     "claude-code",
     "cursor",
-    "copilot",
-    "git",
-    "provenance"
-  ]
+    "github-copilot",
+    "codex",
+    "git-hooks",
+    "developer-tools"
+  ],
+  "homepage": "https://whyline.wrklyst.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Gauravkumar6617/whyline.git"
+  },
+  "bugs": "https://github.com/Gauravkumar6617/whyline/issues"
 }
