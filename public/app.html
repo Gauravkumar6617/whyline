@@ -76,6 +76,7 @@
         <label for="q" hidden>Filter</label>
         <input id="q" type="search" placeholder="Filter by file, prompt, agent, author…">
         <button class="btn" id="refresh">Refresh</button>
+        <button class="btn" id="export">Export CSV</button>
       </div>
     </div>
     <ul class="timeline" id="list"></ul>
@@ -169,6 +170,41 @@ $('#create').onsubmit = async (ev) => {
   if (await load(data.key)) msg(`Workspace "${data.name}" created. Save this API key now, it is shown only once:`, true, data.key);
 };
 
+// Full history for auditors: pages backwards through every event, not just the 500 on screen.
+async function exportCsv() {
+  const btn = $('#export');
+  btn.disabled = true;
+  try {
+    const all = [];
+    for (let before = ''; ;) {
+      const res = await fetch(`/api/events?limit=500${before && '&before=' + before}`, { headers: { authorization: 'Bearer ' + key } });
+      const data = await res.json();
+      if (!res.ok) return msg(data.error);
+      all.push(...data.events);
+      btn.textContent = `Exporting… ${all.length}`;
+      if (data.events.length < 500) break;
+      before = data.events.at(-1).id;
+    }
+    const cols = ['id', 'ts', 'agent', 'kind', 'author', 'commit_sha', 'session', 'summary', 'prompt', 'files'];
+    // Quote everything; prefix cells starting with = + - @ so spreadsheets don't run them as formulas.
+    const cell = (v) => {
+      let t = Array.isArray(v) ? v.join(' ') : String(v ?? '');
+      if (/^[=+\-@\t\r]/.test(t)) t = "'" + t;
+      return '"' + t.replaceAll('"', '""') + '"';
+    };
+    const csv = [cols.join(','), ...all.map((e) => cols.map((c) => cell(e[c])).join(','))].join('\r\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    a.download = `whyline-${$('#ws').textContent}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Export CSV';
+  }
+}
+
+$('#export').onclick = exportCsv;
 $('#q').oninput = render;
 $('#refresh').onclick = () => load(key);
 $('#logout').onclick = () => {

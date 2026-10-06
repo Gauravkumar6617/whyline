@@ -5,8 +5,11 @@ create table if not exists whyline_workspaces (
   id bigint generated always as identity primary key,
   name text not null,
   key_hash text not null unique,
+  creator_ip_hash text,
   created_at timestamptz not null default now()
 );
+
+create index if not exists whyline_workspaces_ip on whyline_workspaces (creator_ip_hash, created_at);
 
 create table if not exists whyline_events (
   id bigint generated always as identity primary key,
@@ -23,6 +26,7 @@ create table if not exists whyline_events (
 );
 
 create index if not exists whyline_events_ws on whyline_events (workspace_id, id);
+create index if not exists whyline_events_commit on whyline_events (workspace_id, commit_sha);
 
 -- RLS on with no policies: the anon/public key gets nothing; only the server's service role key can read or write.
 alter table whyline_workspaces enable row level security;

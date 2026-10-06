@@ -38,5 +38,16 @@ test('workspace -> event -> timeline, with auth and validation', async () => {
   assert.deepEqual(list.events.map((e) => [e.id, e.agent, e.files]), [[ev.id, 'claude-code', ['api/orders.ts']]]);
   assert.equal((await call('GET', `/api/events?since=${ev.id}`, null, ws.key))[1].events.length, 0);
 
+  // Paging backwards and lookup by commit.
+  const sha = 'a'.repeat(40);
+  const [, ev2] = await call('POST', '/api/events', { agent: 'none', kind: 'commit', commit_sha: sha }, ws.key);
+  assert.deepEqual((await call('GET', `/api/events?before=${ev2.id}`, null, ws.key))[1].events.map((e) => e.id), [ev.id]);
+  assert.deepEqual((await call('GET', `/api/events?commit=${sha}`, null, ws.key))[1].events.map((e) => e.id), [ev2.id]);
+  assert.equal((await call('GET', '/api/events?commit=nothex', null, ws.key))[0], 400);
+
+  // Signup cap: 10 per IP per hour (2 created above).
+  for (let i = 0; i < 8; i++) assert.equal((await call('POST', '/api/workspaces', { name: `w${i}` }))[0], 201);
+  assert.equal((await call('POST', '/api/workspaces', { name: 'one-too-many' }))[0], 429);
+
   server.close();
 });

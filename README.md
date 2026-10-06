@@ -21,9 +21,23 @@ which commit, which agent. Live at https://whyline.wrklyst.com.
      ```
    - **Any agent** (Cursor, Copilot, Codex, ...): run `whyline init` in each repo. Every commit is
      recorded; the agent is detected from `Co-Authored-By:` or `AI-Agent:` trailers.
-4. See it: the website timeline, or `whyline events`.
+4. Ask why:
+   ```sh
+   whyline blame src/orders.ts:42
+   # src/orders.ts:42  const amount_cents = Math.round(order.total * 100);
+   #   a41f9c2 · claude-code · priya@acme.io · 06/10/2026, 14:02
+   #   add orders
+   #
+   #   Prompt:
+   #     store money as integer cents
+   ```
+   Or use the website timeline (search, Export CSV for audits), or `whyline events`.
 
-Offline? Events queue in `~/.config/whyline/queue.jsonl` and are sent with the next one.
+- **Offline?** Events queue in `~/.config/whyline/queue.jsonl` and are sent with the next one.
+- **Keep prompts private:** `whyline login ... --no-prompts` (or `WHYLINE_NO_PROMPTS=1`) records that a
+  prompt happened but never sends its text.
+- **How blame links prompts:** Claude Code edits are remembered locally; the next commit that includes
+  those files carries the prompts that produced them.
 
 ## Deploy (Vercel + Supabase)
 

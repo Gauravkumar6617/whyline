@@ -1,7 +1,7 @@
-import { test } from 'node:test';
+import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, execFileSync } from 'node:child_process';
-import { mkdtempSync, existsSync, readFileSync } from 'node:fs';
+import { mkdtempSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -10,6 +10,7 @@ process.env.DB_PATH ??= ":memory:";
 const { server } = await import('../server/index.js');
 await new Promise((r) => server.listening ? r() : server.once('listening', r));
 const url = `http://localhost:${server.address().port}`;
+after(() => server.close());
 
 const CLI = new URL('./whyline.js', import.meta.url).pathname;
 const home = mkdtempSync(join(tmpdir(), 'whyline-'));
@@ -57,5 +58,37 @@ test('git hook detects agent from commit trailer', async () => {
 
   const { events } = await (await fetch(`${url}/api/events`, { headers: { authorization: `Bearer ${ws.key}` } })).json();
   assert.deepEqual(events.map((e) => [e.agent, e.kind, e.author]), [['claude', 'commit', 'dev@x.io']]);
-  server.close();
+});
+
+test('blame: line -> commit -> the Claude prompt that edited it', async () => {
+  const ws = await (await fetch(`${url}/api/workspaces`, { method: 'POST', body: '{"name":"b"}' })).json();
+  const env = { WHYLINE_URL: url, WHYLINE_KEY: ws.key };
+  const repo = mkdtempSync(join(tmpdir(), 'whyline-blame-'));
+  const g = (...a) => execFileSync('git', ['-c', 'user.email=dev@x.io', '-c', 'user.name=dev', ...a], { cwd: repo, encoding: 'utf8' });
+  const inRepo = (args, input = '') => new Promise((resolve) => {
+    const p = spawn(process.execPath, [CLI, ...args], { cwd: repo, env: { ...process.env, WHYLINE_HOME: home, ...env } });
+    let out = '';
+    p.stdout.on('data', (d) => (out += d));
+    p.on('close', () => resolve(out));
+    p.stdin.end(input);
+  });
+  g('init', '-q');
+
+  const hookIn = (h) => JSON.stringify({ session_id: 'sess-9', cwd: repo, ...h });
+  await inRepo(['hook', 'claude-code'], hookIn({ hook_event_name: 'UserPromptSubmit', prompt: 'store money as integer cents' }));
+  writeFileSync(join(repo, 'orders.js'), 'const amount_cents = 1;\n');
+  await inRepo(['hook', 'claude-code'], hookIn({ hook_event_name: 'PostToolUse', tool_name: 'Write', tool_input: { file_path: join(repo, 'orders.js') } }));
+  g('add', '.');
+  g('commit', '-q', '-m', 'add orders'); // no trailer: agent comes from the linked Claude edit
+  await inRepo(['hook', 'git']);
+
+  const out = await inRepo(['blame', 'orders.js:1']);
+  assert.match(out, /orders\.js:1 {2}const amount_cents = 1;/);
+  assert.match(out, /claude-code · dev@x\.io/);
+  assert.match(out, /store money as integer cents/);
+
+  // Opt-out: prompt event recorded, text not sent.
+  await run(['hook', 'claude-code'], { ...env, WHYLINE_NO_PROMPTS: '1' }, hookIn({ hook_event_name: 'UserPromptSubmit', prompt: 'secret' }));
+  const { events } = await (await fetch(`${url}/api/events?limit=1`, { headers: { authorization: `Bearer ${ws.key}` } })).json();
+  assert.deepEqual([events[0].kind, events[0].prompt], ['prompt', null]);
 });
