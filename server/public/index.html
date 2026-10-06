@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Whyline: the audit trail for AI-written code</title>
+<meta name="description" content="git blame tells you who. Whyline tells you why. Every prompt, edit and commit from Claude Code, Cursor, Copilot and Codex in one searchable audit trail.">
+<link rel="icon" href="/logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/style.css">
+<style>
+  .hero { display: grid; grid-template-columns: 1.05fr 1fr; gap: 48px; align-items: center; padding: 56px 0 72px; }
+  .eyebrow { display: inline-block; font-size: 0.85rem; font-weight: 600; color: var(--muted);
+    border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; margin-bottom: 20px; }
+  h1 { font-size: clamp(2.2rem, 5vw, 3.4rem); line-height: 1.08; letter-spacing: -0.03em; margin: 0 0 20px; }
+  h1 em { font-style: normal; background: linear-gradient(transparent 60%, color-mix(in srgb, var(--accent) 55%, transparent) 60%); }
+  .lead { font-size: 1.15rem; color: var(--muted); margin: 0 0 28px; max-width: 34em; }
+  .cta { display: flex; gap: 12px; flex-wrap: wrap; }
+
+  /* Blame view mock */
+  .blame { background: var(--code-bg); color: var(--code-fg); border-radius: var(--radius); padding: 18px 0;
+    font-family: var(--mono); font-size: 13.5px; line-height: 1.9; box-shadow: 0 24px 60px -24px #0006; overflow: hidden; }
+  .blame .bar { display: flex; gap: 6px; padding: 0 18px 12px; }
+  .blame .bar i { width: 10px; height: 10px; border-radius: 50%; background: #3d4256; }
+  .row { display: grid; grid-template-columns: 40px 1fr; padding: 0 18px 0 0; white-space: pre; }
+  .row .n { color: var(--code-dim); text-align: right; padding-right: 14px; }
+  .row.hit { background: #f5b83d1a; box-shadow: inset 3px 0 var(--accent); }
+  .k { color: #c792ea; } .s { color: #c3e88d; } .f { color: #82aaff; }
+  .note { margin: 6px 18px 10px 54px; padding: 12px 14px; border-radius: 10px; background: #0b0d12;
+    border: 1px solid #2a2f40; font-family: system-ui, sans-serif; font-size: 13.5px; line-height: 1.5; white-space: normal; }
+  .note .who { display: flex; align-items: center; gap: 8px; color: var(--code-dim); margin-bottom: 4px; }
+  .note .who { flex-wrap: wrap; }
+  .note .who b { color: var(--accent); font-weight: 600; white-space: nowrap; }
+  .note q { color: var(--code-fg); }
+
+  section { padding: 64px 0; border-top: 1px solid var(--line); }
+  h2 { font-size: clamp(1.6rem, 3.4vw, 2.2rem); letter-spacing: -0.02em; margin: 0 0 12px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 32px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 24px; }
+  .card h3 { margin: 12px 0 6px; font-size: 1.1rem; }
+  .card p { margin: 0; color: var(--muted); }
+  .icon { width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center;
+    background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--fg); }
+
+  .agents { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+  .agents span { border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; font-weight: 600; font-size: 0.95rem; }
+
+  ol.steps { list-style: none; padding: 0; margin: 32px 0 0; display: grid; gap: 20px; counter-reset: s; }
+  ol.steps li { counter-increment: s; display: grid; grid-template-columns: 44px 1fr; gap: 16px; }
+  ol.steps li::before { content: counter(s); width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center;
+    background: var(--accent); color: var(--accent-fg); font-weight: 700; }
+  ol.steps h3 { margin: 4px 0 8px; font-size: 1.1rem; }
+  .code { position: relative; background: var(--code-bg); color: var(--code-fg); border-radius: 10px; padding: 14px 16px; overflow-x: auto; }
+  .code pre { margin: 0; }
+  .code .c { color: var(--code-dim); }
+  .copy { position: absolute; top: 8px; right: 8px; font: 600 12px system-ui; padding: 4px 10px; border-radius: 999px;
+    border: 1px solid #3d4256; background: transparent; color: var(--code-fg); cursor: pointer; }
+
+  .final { text-align: center; }
+  .final .cta { justify-content: center; margin-top: 24px; }
+  footer { padding: 32px 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.9rem;
+    display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+
+  @media (max-width: 860px) {
+    .hero { grid-template-columns: 1fr; padding-top: 24px; }
+    .grid { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 480px) {
+    .blame { font-size: 12px; }
+    .note { margin-left: 18px; }
+    .row { white-space: pre-wrap; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <nav class="nav">
+    <a class="brand" href="/"><img src="/logo.svg" alt="">Whyline</a>
+    <div class="links">
+      <a class="hide-sm" href="#how">How it works</a>
+      <a class="hide-sm" href="#install">Install</a>
+      <a class="btn primary" href="/app">Open app</a>
+    </div>
+  </nav>
+
+  <header class="hero">
+    <div>
+      <span class="eyebrow">Audit trail for AI-written code</span>
+      <h1>git blame tells you who.<br><em>Whyline tells you why.</em></h1>
+      <p class="lead">Every prompt, edit and commit your AI agents make, recorded in one place your team and your
+        auditors can search. Works with Claude Code, Cursor, Copilot, Codex and any agent that commits.</p>
+      <div class="cta">
+        <a class="btn primary" href="/app#new">Create a free workspace</a>
+        <a class="btn" href="#install">Install in 60 seconds</a>
+      </div>
+    </div>
+
+    <div class="blame" aria-label="Example: a line of code annotated with the AI prompt that produced it">
+      <div class="bar" aria-hidden="true"><i></i><i></i><i></i></div>
+      <div class="row"><span class="n">40</span><span><span class="k">export function</span> <span class="f">checkout</span>(order) {</span></div>
+      <div class="row"><span class="n">41</span><span>  <span class="k">const</span> tax = <span class="f">taxFor</span>(order.region);</span></div>
+      <div class="row hit"><span class="n">42</span><span>  <span class="k">const</span> amount_cents = <span class="f">Math.round</span>(order.total * 100);</span></div>
+      <div class="note">
+        <div class="who"><b>● claude-code</b> · priya@acme.io · 2h ago · <code>a41f9c2</code></div>
+        <q>Store money as integer cents. Floats were rounding refunds wrong (ticket #812).</q>
+      </div>
+      <div class="row"><span class="n">43</span><span>  <span class="k">return</span> <span class="f">charge</span>(amount_cents + tax);</span></div>
+      <div class="row"><span class="n">44</span><span>}</span></div>
+    </div>
+  </header>
+</div>
+
+<section>
+  <div class="container">
+    <h2>One record of everything your AI agents did</h2>
+    <p class="muted">Not another chat log. A structured, searchable ledger tied to files and commits.</p>
+    <div class="grid">
+      <div class="card">
+        <div class="icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><path d="M9 12l2 2 4-4"/></svg>
+        </div>
+        <h3>Audit-ready</h3>
+        <p>Which agent changed which file, from which prompt, by whom, and when. Ready for SOC 2 and ISO reviews.</p>
+      </div>
+      <div class="card">
+        <div class="icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="12" cy="18" r="2.5"/><path d="M6 8.5v1.5a3 3 0 003 3h6a3 3 0 003-3V8.5M12 13v2.5"/></svg>
+        </div>
+        <h3>Every agent, one place</h3>
+        <p>Vendor-neutral. A native Claude Code plugin, plus a git hook that covers any agent that commits code.</p>
+      </div>
+      <div class="card">
+        <div class="icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M13 3L5 14h6l-1 7 8-11h-6z"/></svg>
+        </div>
+        <h3>Never in the way</h3>
+        <p>Silent hooks, zero dependencies. Offline? Events queue locally and sync later. Nothing is lost.</p>
+      </div>
+    </div>
+    <div class="agents" aria-label="Supported agents">
+      <span>Claude Code</span><span>Cursor</span><span>GitHub Copilot</span><span>Codex</span><span>Gemini</span><span>Aider</span><span>Devin</span>
+    </div>
+  </div>
+</section>
+
+<section id="how">
+  <div class="container">
+    <h2>How it works</h2>
+    <ol class="steps">
+      <li><div><h3>Agents work as usual</h3><p class="muted">Whyline hooks into Claude Code and git. Nobody changes how they code.</p></div></li>
+      <li><div><h3>Every prompt, edit and commit is recorded</h3><p class="muted">Tied to files, commit hashes and the developer who ran the agent.</p></div></li>
+      <li><div><h3>Ask "why is this here?" and get an answer</h3><p class="muted">On the team timeline, or from the terminal with <code>whyline events</code>.</p></div></li>
+    </ol>
+  </div>
+</section>
+
+<section id="install">
+  <div class="container">
+    <h2>Install in 60 seconds</h2>
+    <ol class="steps">
+      <li><div><h3>Create a workspace and copy your key</h3><a class="btn primary" href="/app#new">Create workspace</a></div></li>
+      <li><div><h3>Install the CLI</h3>
+        <div class="code"><button class="copy">Copy</button><pre>pnpm add -g whyline
+whyline login --url <span class="origin">https://whyline.dev</span> --key wl_...</pre></div></div></li>
+      <li><div><h3>Connect your agents</h3>
+        <div class="code"><button class="copy">Copy</button><pre><span class="c"># Claude Code: prompts and every file edit</span>
+/plugin marketplace add whyline/whyline
+/plugin install whyline@whyline
+
+<span class="c"># Any other agent: every commit, in each repo</span>
+whyline init</pre></div></div></li>
+    </ol>
+  </div>
+</section>
+
+<section class="final">
+  <div class="container">
+    <h2>Know why every line of AI code exists</h2>
+    <p class="muted">Free while in beta. Self-hosting available for teams that keep code in-house.</p>
+    <div class="cta"><a class="btn primary" href="/app#new">Create a free workspace</a></div>
+  </div>
+</section>
+
+<div class="container">
+  <footer>
+    <a class="brand" href="/"><img src="/logo.svg" alt="">Whyline</a>
+    <span>The audit trail for AI-written code.</span>
+  </footer>
+</div>
+
+<script>
+for (const el of document.querySelectorAll('.origin')) el.textContent = location.origin;
+for (const b of document.querySelectorAll('.copy')) {
+  b.onclick = async () => {
+    const text = b.nextElementSibling.innerText.split('\n').filter((l) => !l.startsWith('#')).join('\n').trim();
+    try { await navigator.clipboard.writeText(text); b.textContent = 'Copied'; } catch { b.textContent = 'Select & copy'; }
+    setTimeout(() => (b.textContent = 'Copy'), 1500);
+  };
+}
+</script>
+</body>
+</html>

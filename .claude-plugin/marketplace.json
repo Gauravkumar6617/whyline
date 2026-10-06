@@ -1,0 +1,11 @@
+{
+  "name": "whyline",
+  "owner": { "name": "whyline" },
+  "plugins": [
+    {
+      "name": "whyline",
+      "source": "./adapters/claude-code",
+      "description": "Record every Claude Code prompt and file edit to your whyline workspace."
+    }
+  ]
+}

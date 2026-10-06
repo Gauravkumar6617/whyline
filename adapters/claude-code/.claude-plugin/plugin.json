@@ -1,0 +1,5 @@
+{
+  "name": "whyline",
+  "version": "0.1.0",
+  "description": "Record every Claude Code prompt and file edit to your whyline workspace. Requires the whyline CLI (pnpm add -g whyline)."
+}

@@ -1,0 +1,29 @@
+{
+  "name": "whyline",
+  "version": "0.1.0",
+  "description": "Record what AI coding agents change: prompts, edits, commits.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "bin": {
+    "whyline": "cli/whyline.js"
+  },
+  "files": [
+    "cli/whyline.js"
+  ],
+  "scripts": {
+    "start": "node server/index.js",
+    "test": "node --test server/test.js cli/test.js"
+  },
+  "packageManager": "pnpm@12.4.2",
+  "keywords": [
+    "ai",
+    "audit",
+    "claude-code",
+    "cursor",
+    "copilot",
+    "git",
+    "provenance"
+  ]
+}

@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Whyline workspace</title>
+<link rel="icon" href="/logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/style.css">
+<style>
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 24px; margin: 24px 0; }
+  .panel h2 { margin: 0 0 4px; font-size: 1.2rem; }
+  .panel p { margin: 0 0 16px; }
+  form { display: flex; gap: 10px; flex-wrap: wrap; }
+  form input { flex: 1; min-width: 220px; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  #msg:empty { display: none; }
+  #msg { padding: 12px 16px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); margin: 16px 0; }
+  #msg.ok { border-color: var(--accent); }
+  #msg code { word-break: break-all; font-weight: 600; }
+
+  .head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 24px 0 8px; }
+  .head h1 { font-size: 1.6rem; margin: 0; letter-spacing: -0.02em; }
+  .filters { display: flex; gap: 8px; flex-wrap: wrap; }
+  .filters input { padding: 8px 14px; min-width: 200px; }
+
+  ul.timeline { list-style: none; padding: 0; margin: 16px 0 48px; border-left: 2px solid var(--line); }
+  .ev { position: relative; padding: 0 0 20px 24px; }
+  .ev::before { content: ""; position: absolute; left: -7px; top: 6px; width: 12px; height: 12px; border-radius: 50%;
+    background: var(--bg); border: 2px solid var(--muted); }
+  .ev.ai::before { background: var(--accent); border-color: var(--accent); }
+  .meta { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; color: var(--muted); font-size: 0.88rem; }
+  .tag { font-weight: 600; color: var(--fg); border: 1px solid var(--line); border-radius: 999px; padding: 1px 10px; font-size: 0.8rem; }
+  .body { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-top: 8px; }
+  .body .summary { font-weight: 600; white-space: pre-wrap; word-break: break-word; }
+  .body .prompt { white-space: pre-wrap; word-break: break-word; border-left: 3px solid var(--accent); padding-left: 10px; }
+  .body .files { margin-top: 6px; font-family: var(--mono); font-size: 0.82rem; color: var(--muted); word-break: break-all; }
+  .empty { color: var(--muted); padding: 32px 0; }
+
+  @media (max-width: 720px) { .cols { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="container">
+  <nav class="nav">
+    <a class="brand" href="/"><img src="/logo.svg" alt="">Whyline</a>
+    <div class="links"><button class="btn" id="logout" hidden>Switch workspace</button></div>
+  </nav>
+
+  <p id="msg" role="status"></p>
+
+  <div id="auth" class="cols">
+    <div class="panel" id="new">
+      <h2>Create a workspace</h2>
+      <p class="muted">One per team. You get an API key to connect agents.</p>
+      <form id="create">
+        <label for="name" hidden>Workspace name</label>
+        <input id="name" placeholder="e.g. acme-backend" maxlength="100" required>
+        <button class="btn primary">Create</button>
+      </form>
+    </div>
+    <div class="panel">
+      <h2>Open a workspace</h2>
+      <p class="muted">Paste your workspace API key.</p>
+      <form id="open">
+        <label for="key" hidden>API key</label>
+        <input id="key" type="password" placeholder="wl_…" autocomplete="off" required>
+        <button class="btn">Open</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="view" hidden>
+    <div class="head">
+      <h1 id="ws"></h1>
+      <div class="filters">
+        <label for="q" hidden>Filter</label>
+        <input id="q" type="search" placeholder="Filter by file, prompt, agent, author…">
+        <button class="btn" id="refresh">Refresh</button>
+      </div>
+    </div>
+    <ul class="timeline" id="list"></ul>
+  </div>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const store = {
+  get: () => { try { return localStorage.getItem('wl_key'); } catch { return null; } },
+  set: (k) => { try { k ? localStorage.setItem('wl_key', k) : localStorage.removeItem('wl_key'); } catch {} },
+};
+let key = null, events = [];
+
+function msg(text, ok, keyText) {
+  const m = $('#msg');
+  m.className = ok ? 'ok' : '';
+  m.textContent = text;
+  if (keyText) { const c = document.createElement('code'); c.textContent = keyText; m.append(' ', c); }
+}
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+
+function ago(ts) {
+  const s = (Date.now() - new Date(ts)) / 1000;
+  if (s < 60) return 'just now';
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return new Date(ts).toLocaleDateString();
+}
+
+function render() {
+  const q = $('#q').value.trim().toLowerCase();
+  const shown = events.filter((e) => !q || [e.agent, e.kind, e.author, e.summary, e.prompt, e.commit_sha, ...e.files]
+    .some((v) => v && v.toLowerCase().includes(q)));
+  const list = $('#list');
+  list.replaceChildren();
+  if (!shown.length) {
+    list.append(el('li', 'empty', events.length ? 'No events match.' : 'No events yet. Connect an agent: see the install steps on the home page.'));
+    return;
+  }
+  for (const e of shown) {
+    const li = el('li', 'ev' + (e.agent !== 'none' ? ' ai' : ''));
+    const meta = el('div', 'meta');
+    meta.append(el('span', 'tag', e.agent), el('span', null, e.kind));
+    if (e.author) meta.append(el('span', null, e.author));
+    if (e.commit_sha) meta.append(el('code', null, e.commit_sha.slice(0, 8)));
+    const time = el('time', null, ago(e.ts));
+    time.dateTime = e.ts;
+    time.title = new Date(e.ts).toLocaleString();
+    meta.append(time);
+    li.append(meta);
+
+    const body = el('div', 'body');
+    if (e.summary) body.append(el('div', 'summary', e.summary));
+    if (e.prompt) body.append(el('div', 'prompt', e.prompt));
+    if (e.files.length) body.append(el('div', 'files', e.files.join('  ·  ')));
+    if (body.childNodes.length) li.append(body);
+    list.append(li);
+  }
+}
+
+async function load(k) {
+  const res = await fetch('/api/events?limit=500', { headers: { authorization: 'Bearer ' + k } });
+  const data = await res.json();
+  if (!res.ok) { msg(data.error); return false; }
+  key = k;
+  store.set(k);
+  events = data.events;
+  $('#ws').textContent = data.workspace;
+  $('#auth').hidden = true;
+  $('#view').hidden = false;
+  $('#logout').hidden = false;
+  render();
+  return true;
+}
+
+$('#open').onsubmit = (ev) => { ev.preventDefault(); msg(''); load($('#key').value.trim()); };
+
+$('#create').onsubmit = async (ev) => {
+  ev.preventDefault();
+  const res = await fetch('/api/workspaces', { method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name: $('#name').value }) });
+  const data = await res.json();
+  if (!res.ok) return msg(data.error);
+  if (await load(data.key)) msg(`Workspace "${data.name}" created. Save this API key now, it is shown only once:`, true, data.key);
+};
+
+$('#q').oninput = render;
+$('#refresh').onclick = () => load(key);
+$('#logout').onclick = () => {
+  store.set(null); key = null; events = [];
+  $('#auth').hidden = false; $('#view').hidden = true; $('#logout').hidden = true; msg('');
+};
+
+const saved = store.get();
+if (saved) load(saved);
+else if (location.hash === '#new') $('#name').focus();
+</script>
+</body>
+</html>
