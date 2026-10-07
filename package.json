@@ -14,7 +14,7 @@
   ],
   "scripts": {
     "start": "node server/index.js",
-    "test": "node --test server/test.js cli/test.js"
+    "test": "node --test server/test.js cli/test.js server/site.test.js"
   },
   "packageManager": "pnpm@12.4.2",
   "keywords": [

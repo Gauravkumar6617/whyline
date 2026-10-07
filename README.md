@@ -10,7 +10,7 @@ which commit, which agent. Live at https://whyline.wrklyst.com.
 1. Create a workspace at https://whyline.wrklyst.com/app and copy the API key (shown once).
 2. Install the CLI and log in:
    ```sh
-   pnpm add -g whyline
+   pnpm add -g github:Gauravkumar6617/whyline   # or: npm install -g github:Gauravkumar6617/whyline
    whyline login --url https://whyline.wrklyst.com --key wl_...
    ```
 3. Capture AI work:
@@ -23,9 +23,9 @@ which commit, which agent. Live at https://whyline.wrklyst.com.
      recorded; the agent is detected from `Co-Authored-By:` or `AI-Agent:` trailers.
 4. Ask why:
    ```sh
-   whyline blame src/orders.ts:42
-   # src/orders.ts:42  const amount_cents = Math.round(order.total * 100);
-   #   a41f9c2 · claude-code · priya@acme.io · 06/10/2026, 14:02
+   whyline blame src/orders.ts:2
+   # src/orders.ts:2  const amount_cents = Math.round(order.total * 100);
+   #   a7394e0b · claude-code · dev@example.com · 10/7/2026, 11:10:20 AM
    #   add orders
    #
    #   Prompt:

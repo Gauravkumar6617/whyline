@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Self-hosting Whyline</title>
+<meta name="description" content="Run the Whyline server locally with SQLite, or deploy it to Vercel with Supabase. Requirements, environment variables and tests.">
+<link rel="canonical" href="https://whyline.wrklyst.com/docs/self-hosting">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Whyline">
+<meta property="og:title" content="Self-hosting Whyline">
+<meta property="og:description" content="Run the Whyline server locally with SQLite, or deploy it to Vercel with Supabase. Requirements, environment variables and tests.">
+<meta property="og:url" content="https://whyline.wrklyst.com/docs/self-hosting">
+<meta property="og:image" content="https://whyline.wrklyst.com/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Whyline: git blame tells you who. Whyline tells you why.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/style.css">
+<script>document.documentElement.classList.add('js')</script>
+<script src="/site.js" defer></script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://whyline.wrklyst.com/"},{"@type":"ListItem","position":2,"name":"Docs","item":"https://whyline.wrklyst.com/docs"},{"@type":"ListItem","position":3,"name":"Self-hosting","item":"https://whyline.wrklyst.com/docs/self-hosting"}]}</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="container nav">
+    <a class="brand" href="/"><img src="/logo.svg" alt="" width="28" height="28">Whyline</a>
+    <button type="button" class="btn menu-btn" aria-expanded="false" aria-controls="site-nav">Menu</button>
+    <nav class="nav-links" id="site-nav" aria-label="Main">
+      <a href="/how-it-works">How it works</a>
+      <a href="/features">Features</a>
+      <a href="/docs" aria-current="page">Docs</a>
+      <a href="https://github.com/Gauravkumar6617/whyline" rel="noopener">GitHub</a>
+      <a class="btn primary" href="/app">Open dashboard</a>
+    </nav>
+  </div>
+</header>
+<main id="main">
+<div class="container docs">
+  <nav class="docs-nav" aria-label="Documentation"><h2>Documentation</h2><ul>
+    <li><a href="/docs">Getting started</a></li>
+    <li><a href="/docs/api">API reference</a></li>
+    <li><a href="/docs/data-and-privacy">Data and privacy</a></li>
+    <li><a href="/docs/self-hosting" aria-current="page">Self-hosting</a></li></ul></nav>
+  <article class="prose">
+    <h1>Self-hosting</h1>
+    <p class="lead">The server, the API and this website are in the same repository. Run them locally with SQLite, or deploy to Vercel with Supabase.</p>
+
+    <h2 id="local">Run locally</h2>
+    <p>Requires Node.js 22.13 or newer. There are no dependencies to install.</p>
+    <div class="code" data-copy-label="Copy commands"><pre>git clone https://github.com/Gauravkumar6617/whyline.git
+cd whyline
+pnpm start</pre></div>
+    <p>The server listens on port 3000 (set <code>PORT</code> to change it) and stores data in SQLite at <code>server/whyline.db</code> (set <code>DB_PATH</code> to change it). Open <code>http://localhost:3000/app</code> to create a workspace, then log the CLI in with <code>--url http://localhost:3000</code>.</p>
+    <div class="code" data-copy-label="Copy test command"><pre>pnpm test</pre></div>
+
+    <h2 id="vercel-supabase">Deploy on Vercel and Supabase</h2>
+    <ol>
+      <li>In the Supabase SQL editor, run <a href="https://github.com/Gauravkumar6617/whyline/blob/main/supabase.sql" rel="noopener"><code>supabase.sql</code></a>. The tables are prefixed <code>whyline_</code>, so they can share a project.</li>
+      <li>Import the repository into Vercel. No build settings are needed; <code>vercel.json</code> serves the <code>public/</code> folder and the functions in <code>api/</code>.</li>
+      <li>Set the environment variables <code>SUPABASE_URL</code> (or <code>NEXT_PUBLIC_SUPABASE_URL</code>, which the Vercel Supabase integration sets) and <code>SUPABASE_SERVICE_ROLE_KEY</code>.</li>
+    </ol>
+    <div class="callout"><strong>Keep the service role key secret</strong>It gives full access to the tables. It is used only by the server code, never sent to browsers.</div>
+
+    <h2 id="test-supabase">Test against Supabase</h2>
+    <div class="code" data-copy-label="Copy command"><pre>WHYLINE_DB=supabase SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... pnpm test</pre></div>
+    <p>This runs the test suite against your Supabase project and creates a few test workspaces.</p>
+
+    <h2 id="open-signup">Signup is open</h2>
+    <p>Anyone who can reach your server can create a workspace through <code>POST /api/workspaces</code>, limited to 10 per hour per address. The address comes from the first <code>X-Forwarded-For</code> value, which is only trustworthy if a proxy you control sets it. Without that header, as when you run the server directly, every signup counts against one shared limit. If the server should be private, restrict access at the network or hosting level.</p>
+
+    <h2 id="layout">Repository layout</h2>
+    <div class="table-wrap" role="region" aria-label="Repository layout" tabindex="0"><table>
+      <thead><tr><th>Path</th><th>What it is</th></tr></thead>
+      <tbody>
+        <tr><td><code>public/</code></td><td>This website: pages, the dashboard at /app, styles and logo.</td></tr>
+        <tr><td><code>api/</code></td><td>Vercel functions that call lib/handle.js with Supabase storage.</td></tr>
+        <tr><td><code>lib/handle.js</code></td><td>The API: authentication, validation and routes.</td></tr>
+        <tr><td><code>lib/db-supabase.js</code></td><td>Cloud storage over the Supabase REST API.</td></tr>
+        <tr><td><code>lib/db-sqlite.js</code></td><td>Self-hosted storage.</td></tr>
+        <tr><td><code>server/</code></td><td>The self-hosted server (node:http with SQLite). Also used by the tests.</td></tr>
+        <tr><td><code>cli/</code></td><td>The whyline CLI. Every integration calls it.</td></tr>
+        <tr><td><code>adapters/claude-code/</code></td><td>The Claude Code plugin: hooks that call the CLI.</td></tr>
+      </tbody></table></div>
+  </article>
+</div>
+</main>
+<footer class="site-footer">
+  <div class="container footer-grid">
+    <div>
+      <a class="brand" href="/"><img src="/logo.svg" alt="" width="28" height="28">Whyline</a>
+      <p>git blame tells you who. Whyline tells you why.</p>
+    </div>
+    <nav aria-label="Footer: product"><h2>Product</h2><ul>
+      <li><a href="/how-it-works">How it works</a></li><li><a href="/features">Features</a></li><li><a href="/app">Dashboard</a></li></ul></nav>
+    <nav aria-label="Footer: documentation"><h2>Docs</h2><ul>
+      <li><a href="/docs">Getting started</a></li>
+      <li><a href="/docs/api">API reference</a></li>
+      <li><a href="/docs/data-and-privacy">Data and privacy</a></li>
+      <li><a href="/docs/self-hosting">Self-hosting</a></li></ul></nav>
+    <nav aria-label="Footer: project"><h2>Project</h2><ul>
+      <li><a href="https://github.com/Gauravkumar6617/whyline" rel="noopener">Source on GitHub</a></li><li><a href="https://github.com/Gauravkumar6617/whyline/issues" rel="noopener">Report an issue</a></li></ul></nav>
+  </div>
+</footer>
+</body>
+</html>

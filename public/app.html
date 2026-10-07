@@ -3,85 +3,149 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Whyline workspace</title>
+<title>Whyline dashboard</title>
+<meta name="description" content="Open your Whyline workspace to search the timeline of AI prompts, edits and commits, and export it as CSV.">
+<meta name="robots" content="noindex">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Whyline">
+<meta property="og:title" content="Whyline dashboard">
+<meta property="og:description" content="Open your Whyline workspace to search the timeline of AI prompts, edits and commits, and export it as CSV.">
+<meta property="og:url" content="https://whyline.wrklyst.com/app">
+<meta property="og:image" content="https://whyline.wrklyst.com/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Whyline: git blame tells you who. Whyline tells you why.">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="/logo.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/style.css">
+<script>document.documentElement.classList.add('js')</script>
+<script src="/site.js" defer></script>
 <style>
-  .panel { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 24px; margin: 24px 0; }
-  .panel h2 { margin: 0 0 4px; font-size: 1.2rem; }
+  .panel h2 { margin: 0 0 4px; font-size: var(--t-xl); }
   .panel p { margin: 0 0 16px; }
   form { display: flex; gap: 10px; flex-wrap: wrap; }
   form input { flex: 1; min-width: 220px; }
-  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-  #msg:empty { display: none; }
-  #msg { padding: 12px 16px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); margin: 16px 0; }
-  #msg.ok { border-color: var(--accent); }
-  #msg code { word-break: break-all; font-weight: 600; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding-bottom: var(--s8); }
+  #msg.alert, .keybox { margin: 16px 0; }
+  .keybox h2 { margin: 0 0 8px; font-size: var(--t-xl); }
+  .keybox h2:focus { outline: none; }
+  .keybox p { margin: 0 0 12px; }
+  .keyrow { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+  #newkey { flex: 1; min-width: 220px; padding: 10px 14px; border-radius: var(--r-ctl); background: var(--code-bg); color: var(--code-fg);
+    font-weight: 600; word-break: break-all; user-select: all; }
+  .sk-meta { height: 14px; width: 40%; max-width: 260px; }
+  .sk-body { height: 64px; margin-top: 10px; }
 
   .head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 24px 0 8px; }
-  .head h1 { font-size: 1.6rem; margin: 0; letter-spacing: -0.02em; }
+  .head h1 { font-size: var(--t-2xl); margin: 0; letter-spacing: -0.02em; overflow-wrap: anywhere; }
   .filters { display: flex; gap: 8px; flex-wrap: wrap; }
-  .filters input { padding: 8px 14px; min-width: 200px; }
+  .filters input { min-width: 220px; }
+  #count { font-size: var(--t-sm); }
 
   ul.timeline { list-style: none; padding: 0; margin: 16px 0 48px; border-left: 2px solid var(--line); }
   .ev { position: relative; padding: 0 0 20px 24px; }
   .ev::before { content: ""; position: absolute; left: -7px; top: 6px; width: 12px; height: 12px; border-radius: 50%;
     background: var(--bg); border: 2px solid var(--muted); }
   .ev.ai::before { background: var(--accent); border-color: var(--accent); }
-  .meta { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; color: var(--muted); font-size: 0.88rem; }
-  .tag { font-weight: 600; color: var(--fg); border: 1px solid var(--line); border-radius: 999px; padding: 1px 10px; font-size: 0.8rem; }
-  .body { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-top: 8px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; color: var(--muted); font-size: var(--t-sm); }
+  .tag { font-weight: 600; color: var(--fg); border: 1px solid var(--line); border-radius: 999px; padding: 1px 10px; font-size: var(--t-xs); background: var(--surface); }
+  .body { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card); padding: 12px 16px; margin-top: 8px; }
   .body .summary { font-weight: 600; white-space: pre-wrap; word-break: break-word; }
-  .body .prompt { white-space: pre-wrap; word-break: break-word; border-left: 3px solid var(--accent); padding-left: 10px; }
-  .body .files { margin-top: 6px; font-family: var(--mono); font-size: 0.82rem; color: var(--muted); word-break: break-all; }
+  .body .prompt { white-space: pre-wrap; word-break: break-word; border-left: 3px solid var(--accent); padding-left: 10px; margin-top: 6px; max-height: 16rem; overflow: auto; }
+  .body .files { margin-top: 6px; font-family: var(--mono); font-size: var(--t-xs); color: var(--muted); word-break: break-all; }
   .empty { color: var(--muted); padding: 32px 0; }
 
   @media (max-width: 720px) { .cols { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
-<div class="container">
-  <nav class="nav">
-    <a class="brand" href="/"><img src="/logo.svg" alt="">Whyline</a>
-    <div class="links"><button class="btn" id="logout" hidden>Switch workspace</button></div>
-  </nav>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="container nav">
+    <a class="brand" href="/"><img src="/logo.svg" alt="" width="28" height="28">Whyline</a>
+    <button type="button" class="btn menu-btn" aria-expanded="false" aria-controls="site-nav">Menu</button>
+    <nav class="nav-links" id="site-nav" aria-label="Main">
+      <a href="/how-it-works">How it works</a>
+      <a href="/features">Features</a>
+      <a href="/docs">Docs</a>
+      <a href="https://github.com/Gauravkumar6617/whyline" rel="noopener">GitHub</a>
+      <button type="button" class="btn" id="logout" hidden>Switch workspace</button>
+    </nav>
+  </div>
+</header>
+<main class="container" id="main">
 
   <p id="msg" role="status"></p>
 
-  <div id="auth" class="cols">
-    <div class="panel" id="new">
+  <section id="keybox" class="alert warn keybox" aria-labelledby="keybox-title" hidden>
+    <h2 id="keybox-title" tabindex="-1"></h2>
+    <p><strong>Copy your API key now.</strong> It is shown only once and cannot be recovered. Anyone with it can read and write this workspace.</p>
+    <div class="keyrow">
+      <code id="newkey"></code>
+      <button type="button" class="btn primary" id="copykey">Copy key</button>
+    </div>
+    <span class="sr-only" id="copystate" role="status"></span>
+    <button type="button" class="btn" id="keydone">I've saved it</button>
+  </section>
+
+  <div id="auth">
+  <div class="page-head">
+    <h1>Dashboard</h1>
+    <p class="lead">Create a workspace for your team, or open an existing one with its API key. Events from your agents show up here.</p>
+  </div>
+  <div class="cols">
+    <div class="card panel" id="new">
       <h2>Create a workspace</h2>
       <p class="muted">One per team. You get an API key to connect agents.</p>
       <form id="create">
-        <label for="name" hidden>Workspace name</label>
+        <label for="name" class="sr-only">Workspace name</label>
         <input id="name" placeholder="e.g. acme-backend" maxlength="100" required>
         <button class="btn primary">Create</button>
       </form>
     </div>
-    <div class="panel">
+    <div class="card panel">
       <h2>Open a workspace</h2>
       <p class="muted">Paste your workspace API key.</p>
       <form id="open">
-        <label for="key" hidden>API key</label>
+        <label for="key" class="sr-only">API key</label>
         <input id="key" type="password" placeholder="wl_…" autocomplete="off" required>
         <button class="btn">Open</button>
       </form>
     </div>
+  </div>
   </div>
 
   <div id="view" hidden>
     <div class="head">
       <h1 id="ws"></h1>
       <div class="filters">
-        <label for="q" hidden>Filter</label>
-        <input id="q" type="search" placeholder="Filter by file, prompt, agent, author…">
+        <label for="q" class="sr-only">Filter by file, prompt, agent, author or commit</label>
+        <input id="q" type="search" placeholder="Filter events…">
         <button class="btn" id="refresh">Refresh</button>
         <button class="btn" id="export">Export CSV</button>
       </div>
     </div>
+    <p id="count" class="muted" aria-live="polite"></p>
     <ul class="timeline" id="list"></ul>
   </div>
-</div>
+</main>
+<footer class="site-footer">
+  <div class="container footer-grid">
+    <div>
+      <a class="brand" href="/"><img src="/logo.svg" alt="" width="28" height="28">Whyline</a>
+      <p>git blame tells you who. Whyline tells you why.</p>
+    </div>
+    <nav aria-label="Footer: product"><h2>Product</h2><ul>
+      <li><a href="/how-it-works">How it works</a></li><li><a href="/features">Features</a></li><li><a href="/app">Dashboard</a></li></ul></nav>
+    <nav aria-label="Footer: documentation"><h2>Docs</h2><ul>
+      <li><a href="/docs">Getting started</a></li>
+      <li><a href="/docs/api">API reference</a></li>
+      <li><a href="/docs/data-and-privacy">Data and privacy</a></li>
+      <li><a href="/docs/self-hosting">Self-hosting</a></li></ul></nav>
+    <nav aria-label="Footer: project"><h2>Project</h2><ul>
+      <li><a href="https://github.com/Gauravkumar6617/whyline" rel="noopener">Source on GitHub</a></li><li><a href="https://github.com/Gauravkumar6617/whyline/issues" rel="noopener">Report an issue</a></li></ul></nav>
+  </div>
+</footer>
 
 <script>
 const $ = (s) => document.querySelector(s);
@@ -91,11 +155,38 @@ const store = {
 };
 let key = null, events = [];
 
-function msg(text, ok, keyText) {
+function msg(text, ok) {
   const m = $('#msg');
-  m.className = ok ? 'ok' : '';
+  m.className = text ? 'alert ' + (ok ? 'ok' : 'error') : '';
+  m.setAttribute('role', ok ? 'status' : 'alert');
   m.textContent = text;
-  if (keyText) { const c = document.createElement('code'); c.textContent = keyText; m.append(' ', c); }
+}
+
+// One in-flight action per button: blocks double submits and shows the spinner.
+async function withBusy(btn, fn) {
+  if (btn.getAttribute('aria-busy') === 'true') return;
+  btn.setAttribute('aria-busy', 'true');
+  try { await fn(); } finally { btn.removeAttribute('aria-busy'); }
+}
+
+// fetch + JSON with readable errors for network failures and non-JSON (e.g. platform 5xx) responses.
+async function api(path, opts) {
+  let res;
+  try { res = await fetch(path, opts); } catch { throw new Error("Can't reach Whyline. Check your connection and try again."); }
+  let data = null;
+  try { data = await res.json(); } catch {}
+  if (!res.ok) throw new Error(data?.error || `Request failed (${res.status}).`);
+  if (data === null) throw new Error('Unexpected response from the server.');
+  return data;
+}
+
+function showSkeleton() {
+  const list = $('#list');
+  list.replaceChildren(...Array.from({ length: 4 }, () => {
+    const li = el('li', 'ev');
+    li.append(el('div', 'skeleton sk-meta'), el('div', 'skeleton sk-body'));
+    return li;
+  }));
 }
 
 function el(tag, cls, text) {
@@ -119,8 +210,15 @@ function render() {
     .some((v) => v && v.toLowerCase().includes(q)));
   const list = $('#list');
   list.replaceChildren();
+  $('#count').textContent = events.length ? `Showing ${shown.length} of ${events.length} events${events.length === 500 ? ' (the newest 500; Export CSV has the full history)' : ''}` : '';
   if (!shown.length) {
-    list.append(el('li', 'empty', events.length ? 'No events match.' : 'No events yet. Connect an agent: see the install steps on the home page.'));
+    const li = el('li', 'empty', events.length ? 'No events match your filter.' : 'No events yet. ');
+    if (!events.length) {
+      const a = el('a', null, 'Follow the setup guide');
+      a.href = '/docs';
+      li.append(a, ' to connect Claude Code or the git hook.');
+    }
+    list.append(li);
     return;
   }
   for (const e of shown) {
@@ -145,29 +243,76 @@ function render() {
 }
 
 async function load(k) {
-  const res = await fetch('/api/events?limit=500', { headers: { authorization: 'Bearer ' + k } });
-  const data = await res.json();
-  if (!res.ok) { msg(data.error); return false; }
-  key = k;
-  store.set(k);
-  events = data.events;
-  $('#ws').textContent = data.workspace;
+  const wasOpen = !$('#view').hidden;
   $('#auth').hidden = true;
   $('#view').hidden = false;
-  $('#logout').hidden = false;
-  render();
-  return true;
+  $('#export').disabled = true;
+  $('#list').setAttribute('aria-busy', 'true');
+  if (!wasOpen) $('#ws').textContent = '';
+  showSkeleton();
+  try {
+    const data = await api('/api/events?limit=500', { headers: { authorization: 'Bearer ' + k } });
+    key = k;
+    store.set(k);
+    events = data.events;
+    $('#ws').textContent = data.workspace;
+    $('#logout').hidden = false;
+    render();
+    return true;
+  } catch (err) {
+    if (wasOpen) render(); else { $('#auth').hidden = false; $('#view').hidden = true; }
+    msg(err.message);
+    return false;
+  } finally {
+    $('#export').disabled = false;
+    $('#list').removeAttribute('aria-busy');
+  }
 }
 
-$('#open').onsubmit = (ev) => { ev.preventDefault(); msg(''); load($('#key').value.trim()); };
-
-$('#create').onsubmit = async (ev) => {
+$('#open').onsubmit = (ev) => {
   ev.preventDefault();
-  const res = await fetch('/api/workspaces', { method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ name: $('#name').value }) });
-  const data = await res.json();
-  if (!res.ok) return msg(data.error);
-  if (await load(data.key)) msg(`Workspace "${data.name}" created. Save this API key now, it is shown only once:`, true, data.key);
+  withBusy($('#open button'), () => { msg(''); return load($('#key').value.trim()); });
+};
+
+function revealKey(name, k) {
+  $('#keybox-title').textContent = `Workspace "${name}" created`;
+  $('#newkey').textContent = k;
+  $('#keybox').hidden = false;
+  $('#keybox-title').focus();
+}
+
+function hideKey() { $('#keybox').hidden = true; $('#newkey').textContent = ''; }
+
+$('#copykey').onclick = async () => {
+  const b = $('#copykey');
+  try {
+    await navigator.clipboard.writeText($('#newkey').textContent);
+    b.textContent = 'Copied';
+    $('#copystate').textContent = 'API key copied to clipboard.';
+  } catch {
+    const r = document.createRange();
+    r.selectNodeContents($('#newkey'));
+    getSelection().removeAllRanges();
+    getSelection().addRange(r);
+    b.textContent = 'Select & copy';
+  }
+  setTimeout(() => { b.textContent = 'Copy key'; $('#copystate').textContent = ''; }, 2000);
+};
+$('#keydone').onclick = hideKey;
+
+$('#create').onsubmit = (ev) => {
+  ev.preventDefault();
+  withBusy($('#create button'), async () => {
+    msg('');
+    let data;
+    try {
+      data = await api('/api/workspaces', { method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: $('#name').value }) });
+    } catch (err) { return msg(err.message); }
+    // Show the key before loading so it is never lost if the first load fails.
+    revealKey(data.name, data.key);
+    await load(data.key);
+  });
 };
 
 // Full history for auditors: pages backwards through every event, not just the 500 on screen.
@@ -177,9 +322,7 @@ async function exportCsv() {
   try {
     const all = [];
     for (let before = ''; ;) {
-      const res = await fetch(`/api/events?limit=500${before && '&before=' + before}`, { headers: { authorization: 'Bearer ' + key } });
-      const data = await res.json();
-      if (!res.ok) return msg(data.error);
+      const data = await api(`/api/events?limit=500${before && '&before=' + before}`, { headers: { authorization: 'Bearer ' + key } });
       all.push(...data.events);
       btn.textContent = `Exporting… ${all.length}`;
       if (data.events.length < 500) break;
@@ -198,6 +341,9 @@ async function exportCsv() {
     a.download = `whyline-${$('#ws').textContent}-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(a.href);
+    msg(`Exported ${all.length} events.`, true);
+  } catch (err) {
+    msg(err.message);
   } finally {
     btn.disabled = false;
     btn.textContent = 'Export CSV';
@@ -206,9 +352,9 @@ async function exportCsv() {
 
 $('#export').onclick = exportCsv;
 $('#q').oninput = render;
-$('#refresh').onclick = () => load(key);
+$('#refresh').onclick = () => withBusy($('#refresh'), () => load(key));
 $('#logout').onclick = () => {
-  store.set(null); key = null; events = [];
+  store.set(null); key = null; events = []; hideKey();
   $('#auth').hidden = false; $('#view').hidden = true; $('#logout').hidden = true; msg('');
 };
 

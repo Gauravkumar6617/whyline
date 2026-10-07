@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Data and privacy in Whyline</title>
+<meta name="description" content="What Whyline stores and sends, what stays on your machine, how to keep prompt text private, and who can read a workspace. Based on the code.">
+<link rel="canonical" href="https://whyline.wrklyst.com/docs/data-and-privacy">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Whyline">
+<meta property="og:title" content="Data and privacy in Whyline">
+<meta property="og:description" content="What Whyline stores and sends, what stays on your machine, how to keep prompt text private, and who can read a workspace. Based on the code.">
+<meta property="og:url" content="https://whyline.wrklyst.com/docs/data-and-privacy">
+<meta property="og:image" content="https://whyline.wrklyst.com/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Whyline: git blame tells you who. Whyline tells you why.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/style.css">
+<script>document.documentElement.classList.add('js')</script>
+<script src="/site.js" defer></script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://whyline.wrklyst.com/"},{"@type":"ListItem","position":2,"name":"Docs","item":"https://whyline.wrklyst.com/docs"},{"@type":"ListItem","position":3,"name":"Data and privacy","item":"https://whyline.wrklyst.com/docs/data-and-privacy"}]}</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="container nav">
+    <a class="brand" href="/"><img src="/logo.svg" alt="" width="28" height="28">Whyline</a>
+    <button type="button" class="btn menu-btn" aria-expanded="false" aria-controls="site-nav">Menu</button>
+    <nav class="nav-links" id="site-nav" aria-label="Main">
+      <a href="/how-it-works">How it works</a>
+      <a href="/features">Features</a>
+      <a href="/docs" aria-current="page">Docs</a>
+      <a href="https://github.com/Gauravkumar6617/whyline" rel="noopener">GitHub</a>
+      <a class="btn primary" href="/app">Open dashboard</a>
+    </nav>
+  </div>
+</header>
+<main id="main">
+<div class="container docs">
+  <nav class="docs-nav" aria-label="Documentation"><h2>Documentation</h2><ul>
+    <li><a href="/docs">Getting started</a></li>
+    <li><a href="/docs/api">API reference</a></li>
+    <li><a href="/docs/data-and-privacy" aria-current="page">Data and privacy</a></li>
+    <li><a href="/docs/self-hosting">Self-hosting</a></li></ul></nav>
+  <article class="prose">
+    <h1>Data and privacy</h1>
+    <p class="lead">What Whyline sends, stores and keeps on your machine. This page describes what the code does. It is not a legal privacy policy or terms of service.</p>
+
+    <h2 id="sent">What the CLI sends</h2>
+    <ul>
+      <li><strong>Claude Code prompts:</strong> the prompt text (up to 20,000 characters), unless you turned it off, plus the session id and your git email.</li>
+      <li><strong>Claude Code edits:</strong> the tool name and the path of the file changed (relative to the project when possible).</li>
+      <li><strong>Commits:</strong> the commit hash, author email, the commit message (up to 5,000 characters) and the changed file paths (up to 1,000). When Claude Code edits were recorded for the commit, the prompts from that session are included too.</li>
+    </ul>
+    <h3 id="not-sent">What is not sent, and what is not filtered</h3>
+    <ul>
+      <li>The hooks send file <em>paths</em>, never the contents of your files.</li>
+      <li>Prompts and commit messages are sent exactly as written. Whyline does not scan or redact them, so anything in them, including source code, secrets or personal data you pasted, is sent and stored. The only control is turning prompt text off, below.</li>
+      <li>Author emails and file paths are sent whether or not prompt text is on.</li>
+    </ul>
+
+    <h2 id="no-prompts">Keeping prompts private</h2>
+    <div class="code" data-copy-label="Copy command"><pre>whyline login --url <span class="origin">https://whyline.wrklyst.com</span> --key wl_... --no-prompts
+<span class="c"># or: export WHYLINE_NO_PROMPTS=1</span></pre></div>
+    <p>A prompt event is still recorded, without its text, and the text is not remembered locally, so commits will not carry it either. File paths, commit messages and author emails are still sent. This setting is enforced by the CLI on your machine; the API itself stores whatever a client sends.</p>
+
+    <h2 id="stored">What the server stores</h2>
+    <ul>
+      <li><strong>Workspaces:</strong> the name, a SHA-256 hash of the API key (never the key), a SHA-256 hash of the IP address that created it (used only for the hourly signup limit), and the creation time. The IP hash is unsalted, so treat it as pseudonymous, not anonymous.</li>
+      <li><strong>Events:</strong> the fields listed in the <a href="/docs/api#event-fields">API reference</a>, tied to one workspace.</li>
+    </ul>
+    <p>The hosted instance at whyline.wrklyst.com is the Vercel and Supabase deployment described in the repository README. Its tables have row-level security on with no policies, so only the server's service role key can read them. A server you run yourself stores the same data in SQLite.</p>
+
+    <h2 id="local">What stays on your machine</h2>
+    <p>In <code>~/.config/whyline</code> (or <code>WHYLINE_HOME</code>):</p>
+    <ul>
+      <li><code>config.json</code>: server URL and API key in plain text, created with mode 0600 (readable only by you).</li>
+      <li><code>queue.jsonl</code>: complete events waiting to be sent while offline, including prompt text if prompts are on. Removed as they are sent.</li>
+      <li><code>edits.jsonl</code>: recent Claude Code prompts and edited file paths, used to link prompts to commits. Records older than a day are removed, but only when a commit is recorded.</li>
+    </ul>
+    <p>Only <code>config.json</code> gets restricted permissions. The queue and edit records are created with your default file permissions, so on a shared machine anyone who can read your config directory can read them.</p>
+
+    <h2 id="access">Who can read a workspace</h2>
+    <p>Anyone holding the workspace API key can read and write all of its events. There are no user accounts or per-person permissions. Treat the key like a password and share it deliberately. Signing up is open on any server: anyone who can reach the server can create a workspace (see <a href="/docs/self-hosting#open-signup">self-hosting</a> for how the limit works).</p>
+
+    <h2 id="deletion">Deleting data</h2>
+    <p>The API and dashboard have no way to delete events or workspaces. Whoever runs the server can remove rows directly in the database.</p>
+  </article>
+</div>
+</main>
+<footer class="site-footer">
+  <div class="container footer-grid">
+    <div>
+      <a class="brand" href="/"><img src="/logo.svg" alt="" width="28" height="28">Whyline</a>
+      <p>git blame tells you who. Whyline tells you why.</p>
+    </div>
+    <nav aria-label="Footer: product"><h2>Product</h2><ul>
+      <li><a href="/how-it-works">How it works</a></li><li><a href="/features">Features</a></li><li><a href="/app">Dashboard</a></li></ul></nav>
+    <nav aria-label="Footer: documentation"><h2>Docs</h2><ul>
+      <li><a href="/docs">Getting started</a></li>
+      <li><a href="/docs/api">API reference</a></li>
+      <li><a href="/docs/data-and-privacy">Data and privacy</a></li>
+      <li><a href="/docs/self-hosting">Self-hosting</a></li></ul></nav>
+    <nav aria-label="Footer: project"><h2>Project</h2><ul>
+      <li><a href="https://github.com/Gauravkumar6617/whyline" rel="noopener">Source on GitHub</a></li><li><a href="https://github.com/Gauravkumar6617/whyline/issues" rel="noopener">Report an issue</a></li></ul></nav>
+  </div>
+</footer>
+</body>
+</html>

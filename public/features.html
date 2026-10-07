@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Whyline features: what is built today</title>
+<meta name="description" content="Everything Whyline does today: Claude Code plugin, git hook, whyline blame, dashboard timeline, CSV export, offline queue, prompt privacy and self-hosting.">
+<link rel="canonical" href="https://whyline.wrklyst.com/features">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Whyline">
+<meta property="og:title" content="Whyline features: what is built today">
+<meta property="og:description" content="Everything Whyline does today: Claude Code plugin, git hook, whyline blame, dashboard timeline, CSV export, offline queue, prompt privacy and self-hosting.">
+<meta property="og:url" content="https://whyline.wrklyst.com/features">
+<meta property="og:image" content="https://whyline.wrklyst.com/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Whyline: git blame tells you who. Whyline tells you why.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/style.css">
+<script>document.documentElement.classList.add('js')</script>
+<script src="/site.js" defer></script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://whyline.wrklyst.com/"},{"@type":"ListItem","position":2,"name":"Features","item":"https://whyline.wrklyst.com/features"}]}</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="container nav">
+    <a class="brand" href="/"><img src="/logo.svg" alt="" width="28" height="28">Whyline</a>
+    <button type="button" class="btn menu-btn" aria-expanded="false" aria-controls="site-nav">Menu</button>
+    <nav class="nav-links" id="site-nav" aria-label="Main">
+      <a href="/how-it-works">How it works</a>
+      <a href="/features" aria-current="page">Features</a>
+      <a href="/docs">Docs</a>
+      <a href="https://github.com/Gauravkumar6617/whyline" rel="noopener">GitHub</a>
+      <a class="btn primary" href="/app">Open dashboard</a>
+    </nav>
+  </div>
+</header>
+<main id="main">
+<div class="container">
+  <div class="page-head">
+    <h1>Features</h1>
+    <p class="lead">What Whyline does today, grouped by what you use it for. A short list of things it does not do is at the end.</p>
+  </div>
+</div>
+<section class="section first"><div class="container">
+  <div class="section-head"><h2>Capture</h2></div>
+  <div class="grid two">
+    <div class="card"><h3>Claude Code plugin</h3><p>Records each prompt you submit and each file edit made with Edit, Write, MultiEdit or NotebookEdit.</p><p class="benefit">The reason is saved when the change is made, not reconstructed later.</p></div>
+    <div class="card"><h3>Git post-commit hook</h3><p><code>whyline init</code> installs a hook in the repository. Every commit becomes an event with its hash, author email, message and changed files. An existing post-commit hook is kept, and running init twice does nothing.</p><p class="benefit">Works for any tool that commits, with no agent-specific integration.</p></div>
+    <div class="card"><h3>Agent detection from trailers</h3><p>A commit is attributed to an agent when its message has a <code>Co-Authored-By:</code> or <code>AI-Agent:</code> trailer naming claude, cursor, copilot, codex, gemini, aider, devin or windsurf.</p><p class="benefit">One record format across agents, with no vendor lock-in.</p></div>
+    <div class="card"><h3>Prompts linked to commits</h3><p>When a commit includes files Claude Code edited, the commit event carries the prompts from that session.</p><p class="benefit">Blame can show the prompt, not only the commit message.</p></div>
+  </div>
+</div></section>
+<section class="section"><div class="container">
+  <div class="section-head"><h2>Find the answer</h2></div>
+  <div class="grid two">
+    <div class="card"><h3><code>whyline blame file:line</code></h3><p>Finds the commit for a line with <code>git blame</code>, then prints the agent, author, time, message and prompt recorded for it.</p><p class="benefit">Answer “why is this here?” without leaving the terminal.</p></div>
+    <div class="card"><h3><code>whyline events</code></h3><p>Lists recent events as tab-separated rows. <code>--since &lt;id&gt;</code> shows only newer ones.</p><p class="benefit">Easy to pipe into other tools.</p></div>
+    <div class="card"><h3>Dashboard timeline</h3><p>A newest-first timeline of the latest 500 events. Filter by file, prompt, agent, author or commit hash.</p><p class="benefit">Review what agents did across a whole team in one place.</p></div>
+    <div class="card"><h3>CSV export</h3><p>Downloads the full history, paging through every event, with id, time, agent, kind, author, commit, session, summary, prompt and files. Cells that start with <code>=</code>, <code>+</code>, <code>-</code> or <code>@</code> are escaped so spreadsheets do not run them as formulas.</p><p class="benefit">Hand a complete record to a reviewer or load it into your own tools.</p></div>
+  </div>
+</div></section>
+<section class="section"><div class="container">
+  <div class="section-head"><h2>Reliability and privacy</h2></div>
+  <div class="grid two">
+    <div class="card"><h3>Offline queue</h3><p>Events that cannot be sent are kept in a local file and sent with the next successful event. Invalid events the server rejects are dropped.</p><p class="benefit">Working offline does not silently skip events.</p></div>
+    <div class="card"><h3>Hooks stay out of the way</h3><p>Silent on stdout, always exit 0, and time out (5 seconds for the Claude Code hooks, 4 seconds per API call).</p><p class="benefit">A Whyline problem never blocks your commit or the agent.</p></div>
+    <div class="card"><h3>Prompt text opt-out</h3><p><code>--no-prompts</code> or <code>WHYLINE_NO_PROMPTS=1</code> records that a prompt happened without sending or remembering its text.</p><p class="benefit">Keep sensitive prompts on your machine.</p></div>
+    <div class="card"><h3>Hashed keys</h3><p>Workspace API keys are stored as SHA-256 hashes. Signup IP addresses are stored as hashes and used to rate-limit workspace creation to 10 per hour.</p><p class="benefit">A database leak does not reveal usable keys.</p></div>
+  </div>
+</div></section>
+<section class="section"><div class="container">
+  <div class="section-head"><h2>Run it your way</h2></div>
+  <div class="grid two">
+    <div class="card"><h3>Self-host or deploy your own</h3><p>Run the server locally with SQLite, or deploy it to Vercel with Supabase. Both use the same API.</p><p class="benefit">Keep events on infrastructure you control.</p></div>
+    <div class="card"><h3>Small HTTP API</h3><p>Three routes, authenticated with a Bearer key. Documented in the <a href="/docs/api">API reference</a>.</p><p class="benefit">Send events from any tool that can make an HTTP request.</p></div>
+  </div>
+</div></section>
+<section class="section"><div class="container">
+  <div class="section-head"><h2>Not available today</h2><p>Stated plainly so you can judge fit.</p></div>
+  <div class="callout plain"><strong>Limits of the current version</strong>
+    <ul>
+      <li>Prompts and individual edits are captured only for Claude Code. Other agents are recorded at commit time.</li>
+      <li>A commit is attributed to an agent only if its message names one, or if Claude Code edits were recorded locally. Otherwise it is recorded as <code>none</code>.</li>
+      <li>A workspace is accessed with a single API key. There are no user accounts or per-person permissions.</li>
+      <li>There is no key recovery or rotation, and no way to delete events or workspaces from the API or dashboard.</li>
+      <li>The dashboard lists the newest 500 events. Export CSV for the full history.</li>
+    </ul></div>
+  <div class="cta" style="margin-top:var(--s5)"><a class="btn primary" href="/docs">Get started</a><a class="btn" href="/app">Open dashboard</a></div>
+</div></section>
+</main>
+<footer class="site-footer">
+  <div class="container footer-grid">
+    <div>
+      <a class="brand" href="/"><img src="/logo.svg" alt="" width="28" height="28">Whyline</a>
+      <p>git blame tells you who. Whyline tells you why.</p>
+    </div>
+    <nav aria-label="Footer: product"><h2>Product</h2><ul>
+      <li><a href="/how-it-works">How it works</a></li><li><a href="/features">Features</a></li><li><a href="/app">Dashboard</a></li></ul></nav>
+    <nav aria-label="Footer: documentation"><h2>Docs</h2><ul>
+      <li><a href="/docs">Getting started</a></li>
+      <li><a href="/docs/api">API reference</a></li>
+      <li><a href="/docs/data-and-privacy">Data and privacy</a></li>
+      <li><a href="/docs/self-hosting">Self-hosting</a></li></ul></nav>
+    <nav aria-label="Footer: project"><h2>Project</h2><ul>
+      <li><a href="https://github.com/Gauravkumar6617/whyline" rel="noopener">Source on GitHub</a></li><li><a href="https://github.com/Gauravkumar6617/whyline/issues" rel="noopener">Report an issue</a></li></ul></nav>
+  </div>
+</footer>
+</body>
+</html>

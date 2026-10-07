@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Whyline API reference</title>
+<meta name="description" content="The Whyline HTTP API: create a workspace, post events, list events by id range or commit. Authentication, fields, limits and error responses.">
+<link rel="canonical" href="https://whyline.wrklyst.com/docs/api">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Whyline">
+<meta property="og:title" content="Whyline API reference">
+<meta property="og:description" content="The Whyline HTTP API: create a workspace, post events, list events by id range or commit. Authentication, fields, limits and error responses.">
+<meta property="og:url" content="https://whyline.wrklyst.com/docs/api">
+<meta property="og:image" content="https://whyline.wrklyst.com/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Whyline: git blame tells you who. Whyline tells you why.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/style.css">
+<script>document.documentElement.classList.add('js')</script>
+<script src="/site.js" defer></script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://whyline.wrklyst.com/"},{"@type":"ListItem","position":2,"name":"Docs","item":"https://whyline.wrklyst.com/docs"},{"@type":"ListItem","position":3,"name":"API reference","item":"https://whyline.wrklyst.com/docs/api"}]}</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="container nav">
+    <a class="brand" href="/"><img src="/logo.svg" alt="" width="28" height="28">Whyline</a>
+    <button type="button" class="btn menu-btn" aria-expanded="false" aria-controls="site-nav">Menu</button>
+    <nav class="nav-links" id="site-nav" aria-label="Main">
+      <a href="/how-it-works">How it works</a>
+      <a href="/features">Features</a>
+      <a href="/docs" aria-current="page">Docs</a>
+      <a href="https://github.com/Gauravkumar6617/whyline" rel="noopener">GitHub</a>
+      <a class="btn primary" href="/app">Open dashboard</a>
+    </nav>
+  </div>
+</header>
+<main id="main">
+<div class="container docs">
+  <nav class="docs-nav" aria-label="Documentation"><h2>Documentation</h2><ul>
+    <li><a href="/docs">Getting started</a></li>
+    <li><a href="/docs/api" aria-current="page">API reference</a></li>
+    <li><a href="/docs/data-and-privacy">Data and privacy</a></li>
+    <li><a href="/docs/self-hosting">Self-hosting</a></li></ul></nav>
+  <article class="prose">
+    <h1>API reference</h1>
+    <p class="lead">Three routes. Requests and responses are JSON. The CLI and the dashboard use exactly these.</p>
+
+    <h2 id="auth">Authentication</h2>
+    <p>Send the workspace key as a Bearer token: <code>Authorization: Bearer wl_...</code>. <code>POST /api/workspaces</code> needs no key. A missing or wrong key returns 401.</p>
+
+    <h2 id="create-workspace">POST /api/workspaces</h2>
+    <p>Create a workspace. Body: <code>{"name": "..."}</code>, 1 to 100 characters (trimmed). Returns 201 with <code>id</code>, <code>name</code> and <code>key</code>. The key is not stored in readable form and cannot be retrieved again.</p>
+    <p>Creation is limited to 10 workspaces per hour per client address, taken from the first <code>X-Forwarded-For</code> value; beyond that you get 429. Requests without that header all count as one source.</p>
+    <div class="code" data-copy-label="Copy curl command"><pre>curl -X POST https://whyline.wrklyst.com/api/workspaces \
+  -H 'content-type: application/json' \
+  -d '{"name":"acme-backend"}'</pre></div>
+
+    <h2 id="post-event">POST /api/events</h2>
+    <p>Record one event. Requires the Bearer key. Returns 201 with <code>{"id": ...}</code>.</p>
+    <div class="code" data-copy-label="Copy curl command"><pre>curl -X POST https://whyline.wrklyst.com/api/events \
+  -H "authorization: Bearer $WHYLINE_KEY" \
+  -H 'content-type: application/json' \
+  -d '{"agent":"claude-code","kind":"prompt","prompt":"..."}'</pre></div>
+    <h3 id="event-fields">Event fields</h3>
+    <p><code>agent</code> and <code>kind</code> are required. Every other field is optional. The official tools send <code>kind</code> values of <code>prompt</code>, <code>edit</code> and <code>commit</code>, but any string up to the limit is accepted.</p>
+    <div class="table-wrap" role="region" aria-label="Event fields" tabindex="0"><table>
+      <thead><tr><th>Field</th><th>Type</th><th>Limit</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>agent</code></td><td>string</td><td>100 characters</td><td>Required. For example claude-code, or none for unattributed commits.</td></tr>
+        <tr><td><code>kind</code></td><td>string</td><td>50 characters</td><td>Required.</td></tr>
+        <tr><td><code>ts</code></td><td>string</td><td>40 characters</td><td>ISO 8601 time the event happened. Defaults to the time received.</td></tr>
+        <tr><td><code>author</code></td><td>string</td><td>200 characters</td><td>The CLI sends the git author email.</td></tr>
+        <tr><td><code>session</code></td><td>string</td><td>200 characters</td><td>Agent session identifier.</td></tr>
+        <tr><td><code>prompt</code></td><td>string</td><td>20,000 characters</td><td>Prompt text.</td></tr>
+        <tr><td><code>summary</code></td><td>string</td><td>5,000 characters</td><td>Commit message, or tool and file for edits.</td></tr>
+        <tr><td><code>commit_sha</code></td><td>string</td><td>64 characters</td><td>Commit hash.</td></tr>
+        <tr><td><code>files</code></td><td>array of strings</td><td>1,000 items of up to 1,000 characters</td><td>Paths, relative to the repository when sent by the CLI.</td></tr>
+      </tbody></table></div>
+    <p>The request body can be at most 1,000,000 characters (413 beyond that).</p>
+
+    <h2 id="list-events">GET /api/events</h2>
+    <p>List events, newest first. Requires the Bearer key. Returns 200 with <code>{"workspace": "name", "events": [...]}</code>. Each event has <code>id</code>, <code>ts</code> and the fields above.</p>
+    <div class="table-wrap" role="region" aria-label="Query parameters" tabindex="0"><table>
+      <thead><tr><th>Parameter</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>since</code></td><td>Only events with an id greater than this. Default 0.</td></tr>
+        <tr><td><code>before</code></td><td>Only events with an id less than this. Use the last id of a page to get the next page.</td></tr>
+        <tr><td><code>commit</code></td><td>Only events for this commit. Must be a full 40-character lowercase hex hash, otherwise 400.</td></tr>
+        <tr><td><code>limit</code></td><td>Number of events, 1 to 500. Default 100.</td></tr>
+      </tbody></table></div>
+    <div class="code" data-copy-label="Copy curl command"><pre>curl "https://whyline.wrklyst.com/api/events?limit=20" \
+  -H "authorization: Bearer $WHYLINE_KEY"</pre></div>
+
+    <h2 id="errors">Errors</h2>
+    <p>Errors are JSON: <code>{"error": "message"}</code>.</p>
+    <div class="table-wrap" role="region" aria-label="Status codes" tabindex="0"><table>
+      <thead><tr><th>Status</th><th>When</th></tr></thead>
+      <tbody>
+        <tr><td><code>400</code></td><td>Invalid JSON, a missing required field, or a field over its limit.</td></tr>
+        <tr><td><code>401</code></td><td>Missing or invalid API key.</td></tr>
+        <tr><td><code>404</code></td><td>Unknown route.</td></tr>
+        <tr><td><code>413</code></td><td>Request body too large.</td></tr>
+        <tr><td><code>429</code></td><td>Too many workspaces created from one IP in the last hour.</td></tr>
+        <tr><td><code>500</code></td><td>Server error.</td></tr>
+      </tbody></table></div>
+  </article>
+</div>
+</main>
+<footer class="site-footer">
+  <div class="container footer-grid">
+    <div>
+      <a class="brand" href="/"><img src="/logo.svg" alt="" width="28" height="28">Whyline</a>
+      <p>git blame tells you who. Whyline tells you why.</p>
+    </div>
+    <nav aria-label="Footer: product"><h2>Product</h2><ul>
+      <li><a href="/how-it-works">How it works</a></li><li><a href="/features">Features</a></li><li><a href="/app">Dashboard</a></li></ul></nav>
+    <nav aria-label="Footer: documentation"><h2>Docs</h2><ul>
+      <li><a href="/docs">Getting started</a></li>
+      <li><a href="/docs/api">API reference</a></li>
+      <li><a href="/docs/data-and-privacy">Data and privacy</a></li>
+      <li><a href="/docs/self-hosting">Self-hosting</a></li></ul></nav>
+    <nav aria-label="Footer: project"><h2>Project</h2><ul>
+      <li><a href="https://github.com/Gauravkumar6617/whyline" rel="noopener">Source on GitHub</a></li><li><a href="https://github.com/Gauravkumar6617/whyline/issues" rel="noopener">Report an issue</a></li></ul></nav>
+  </div>
+</footer>
+</body>
+</html>

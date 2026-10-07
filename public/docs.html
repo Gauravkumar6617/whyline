@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Get started with Whyline</title>
+<meta name="description" content="Install the Whyline CLI from GitHub, log in with a workspace key, connect Claude Code or the git hook, and use whyline blame to see why a line exists.">
+<link rel="canonical" href="https://whyline.wrklyst.com/docs">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Whyline">
+<meta property="og:title" content="Get started with Whyline">
+<meta property="og:description" content="Install the Whyline CLI from GitHub, log in with a workspace key, connect Claude Code or the git hook, and use whyline blame to see why a line exists.">
+<meta property="og:url" content="https://whyline.wrklyst.com/docs">
+<meta property="og:image" content="https://whyline.wrklyst.com/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Whyline: git blame tells you who. Whyline tells you why.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/style.css">
+<script>document.documentElement.classList.add('js')</script>
+<script src="/site.js" defer></script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://whyline.wrklyst.com/"},{"@type":"ListItem","position":2,"name":"Docs","item":"https://whyline.wrklyst.com/docs"}]}</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="container nav">
+    <a class="brand" href="/"><img src="/logo.svg" alt="" width="28" height="28">Whyline</a>
+    <button type="button" class="btn menu-btn" aria-expanded="false" aria-controls="site-nav">Menu</button>
+    <nav class="nav-links" id="site-nav" aria-label="Main">
+      <a href="/how-it-works">How it works</a>
+      <a href="/features">Features</a>
+      <a href="/docs" aria-current="page">Docs</a>
+      <a href="https://github.com/Gauravkumar6617/whyline" rel="noopener">GitHub</a>
+      <a class="btn primary" href="/app">Open dashboard</a>
+    </nav>
+  </div>
+</header>
+<main id="main">
+<div class="container docs">
+  <nav class="docs-nav" aria-label="Documentation"><h2>Documentation</h2><ul>
+    <li><a href="/docs" aria-current="page">Getting started</a></li>
+    <li><a href="/docs/api">API reference</a></li>
+    <li><a href="/docs/data-and-privacy">Data and privacy</a></li>
+    <li><a href="/docs/self-hosting">Self-hosting</a></li></ul></nav>
+  <article class="prose">
+    <h1>Getting started</h1>
+    <p class="lead">Create a workspace, install the CLI, connect your agents, and ask why. About five minutes.</p>
+
+    <h2 id="requirements">Requirements</h2>
+    <ul>
+      <li>Node.js 22.13 or newer.</li>
+      <li>git, for <code>whyline init</code> and <code>whyline blame</code>.</li>
+      <li>For prompt and edit capture: Claude Code.</li>
+    </ul>
+
+    <h2 id="workspace">1. Create a workspace</h2>
+    <p>Open the <a href="/app#new">dashboard</a>, enter a name and choose <strong>Create</strong>. Copy the API key (it starts with <code>wl_</code>). It is shown once and cannot be recovered. Anyone with the key can read and write that workspace.</p>
+
+    <h2 id="install">2. Install the CLI</h2>
+    <p>Whyline is not published to the npm registry. Install it straight from GitHub:</p>
+    <div class="code" data-copy-label="Copy install command"><pre>pnpm add -g github:Gauravkumar6617/whyline
+<span class="c"># or: npm install -g github:Gauravkumar6617/whyline</span></pre></div>
+    <p>Check it worked with <code>whyline --help</code>. The Claude Code plugin and the git hook both call <code>whyline</code>, so it must be on your PATH. Without a global install you can still run the CLI from a clone with <code>node cli/whyline.js</code>.</p>
+
+    <h2 id="login">3. Log in</h2>
+    <div class="code" data-copy-label="Copy login command"><pre>whyline login --url <span class="origin">https://whyline.wrklyst.com</span> --key wl_...</pre></div>
+    <p>This checks the key and saves it to <code>~/.config/whyline/config.json</code>. For your own server, use its URL. Alternatively set <code>WHYLINE_URL</code> and <code>WHYLINE_KEY</code>.</p>
+
+    <h2 id="claude-code">4a. Connect Claude Code (prompts, edits and commits)</h2>
+    <div class="code" data-copy-label="Copy plugin commands"><pre>/plugin marketplace add Gauravkumar6617/whyline
+/plugin install whyline@whyline</pre></div>
+    <p>The plugin runs <code>whyline hook claude-code</code> after each prompt and after each Edit, Write, MultiEdit or NotebookEdit. It needs the CLI from step 2. Also run <code>whyline init</code> (below) in each repository so commits are recorded and linked to those prompts.</p>
+
+    <h2 id="git-hook">4b. Connect any agent (commits)</h2>
+    <div class="code" data-copy-label="Copy init command"><pre>whyline init</pre></div>
+    <p>Run this in each repository. It adds a <code>post-commit</code> hook that records every commit. The agent is read from the commit message: a <code>Co-Authored-By:</code> or <code>AI-Agent:</code> trailer containing claude, cursor, copilot, codex, gemini, aider, devin or windsurf. Without one, the commit is recorded as agent <code>none</code>.</p>
+    <div class="callout"><strong>Your agent has to add the trailer</strong>Whyline does not add it for you. If your agent does not write one, add it to your commit message yourself, for example <code>AI-Agent: cursor</code>.</div>
+
+    <h2 id="blame">5. Ask why</h2>
+    <div class="code" data-copy-label="Copy blame command"><pre>whyline blame src/orders.ts:2</pre></div>
+    <p>Prints the code on that line, then the commit, agent, author, time and message, and the prompt if one was linked. Example output from a local demo repository:</p>
+    <div class="code" data-nocopy><span class="label">Example output</span><pre><span class="c">$ whyline blame src/orders.ts:2</span>
+src/orders.ts:2  const amount_cents = Math.round(order.total * 100);
+  a7394e0b · claude-code · dev@example.com · 10/7/2026, 11:10:20 AM
+  add orders
+
+  Prompt:
+    store money as integer cents</pre></div>
+    <p>Messages you may see: <em>not committed yet</em> for uncommitted lines, and <em>no Whyline record</em> for commits made before setup or without the git hook.</p>
+
+    <h2 id="view">6. View events</h2>
+    <ul>
+      <li><strong>CLI:</strong> <code>whyline events</code> prints one tab-separated line per event: id, time, agent, kind, author, and the first line of the summary or prompt. Add <code>--since &lt;id&gt;</code> for newer events only.</li>
+      <li><strong>Dashboard:</strong> open <a href="/app">/app</a>, paste your key, and filter the newest 500 events by file, prompt, agent, author or commit.</li>
+      <li><strong>CSV:</strong> choose <strong>Export CSV</strong> in the dashboard for the full history.</li>
+    </ul>
+
+    <h2 id="offline">Offline and privacy</h2>
+    <p>Events that cannot be sent are queued in <code>~/.config/whyline/queue.jsonl</code> and sent with the next event. To keep prompt text off the server, log in with <code>--no-prompts</code>. Details are in <a href="/docs/data-and-privacy">data and privacy</a>.</p>
+
+    <h2 id="cli-reference">CLI reference</h2>
+    <div class="table-wrap" role="region" aria-label="CLI commands" tabindex="0"><table>
+      <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td><code>whyline login --url &lt;server&gt; --key &lt;wl_...&gt; [--no-prompts]</code></td><td>Save credentials. <code>--no-prompts</code> never sends prompt text.</td></tr>
+        <tr><td><code>whyline init</code></td><td>Install the git post-commit hook in this repository.</td></tr>
+        <tr><td><code>whyline blame &lt;file&gt;:&lt;line&gt;</code></td><td>Show the commit, agent and prompt behind a line.</td></tr>
+        <tr><td><code>whyline events [--since &lt;id&gt;]</code></td><td>Show recent events.</td></tr>
+        <tr><td><code>whyline hook claude-code</code></td><td>Used by the Claude Code plugin. Reads hook JSON on stdin.</td></tr>
+        <tr><td><code>whyline hook git</code></td><td>Used by the git hook.</td></tr>
+      </tbody></table></div>
+    <h3>Environment variables</h3>
+    <ul>
+      <li><code>WHYLINE_URL</code>, <code>WHYLINE_KEY</code>: server and key, overriding the saved config.</li>
+      <li><code>WHYLINE_NO_PROMPTS=1</code>: never send prompt text.</li>
+      <li><code>WHYLINE_HOME</code>: where config, queue and edit records are kept. Default <code>~/.config/whyline</code>.</li>
+    </ul>
+    <p>Next: the <a href="/docs/api">API reference</a>, or <a href="/docs/self-hosting">run your own server</a>.</p>
+  </article>
+</div>
+</main>
+<footer class="site-footer">
+  <div class="container footer-grid">
+    <div>
+      <a class="brand" href="/"><img src="/logo.svg" alt="" width="28" height="28">Whyline</a>
+      <p>git blame tells you who. Whyline tells you why.</p>
+    </div>
+    <nav aria-label="Footer: product"><h2>Product</h2><ul>
+      <li><a href="/how-it-works">How it works</a></li><li><a href="/features">Features</a></li><li><a href="/app">Dashboard</a></li></ul></nav>
+    <nav aria-label="Footer: documentation"><h2>Docs</h2><ul>
+      <li><a href="/docs">Getting started</a></li>
+      <li><a href="/docs/api">API reference</a></li>
+      <li><a href="/docs/data-and-privacy">Data and privacy</a></li>
+      <li><a href="/docs/self-hosting">Self-hosting</a></li></ul></nav>
+    <nav aria-label="Footer: project"><h2>Project</h2><ul>
+      <li><a href="https://github.com/Gauravkumar6617/whyline" rel="noopener">Source on GitHub</a></li><li><a href="https://github.com/Gauravkumar6617/whyline/issues" rel="noopener">Report an issue</a></li></ul></nav>
+  </div>
+</footer>
+</body>
+</html>
