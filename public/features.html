@@ -48,7 +48,7 @@
   <div class="section-head"><h2>Capture</h2></div>
   <div class="grid two">
     <div class="card"><h3>Claude Code plugin</h3><p>Records each prompt you submit and each file edit made with Edit, Write, MultiEdit or NotebookEdit.</p><p class="benefit">The reason is saved when the change is made, not reconstructed later.</p></div>
-    <div class="card"><h3>Git post-commit hook</h3><p><code>whyline init</code> installs a hook in the repository. Every commit becomes an event with its hash, author email, message and changed files. An existing post-commit hook is kept, and running init twice does nothing.</p><p class="benefit">Works for any tool that commits, with no agent-specific integration.</p></div>
+    <div class="card"><h3>Git post-commit hook</h3><p><code>whyline init</code> installs a hook in the repository. Every commit becomes an event with its hash, author email, message and changed files. It follows <code>core.hooksPath</code>. An existing shell hook is kept and still runs; a hook in another language is never edited, and init tells you how to add the call yourself. Running init twice does nothing.</p><p class="benefit">Works for any tool that commits, with no agent-specific integration.</p></div>
     <div class="card"><h3>Agent detection from trailers</h3><p>A commit is attributed to an agent when its message has a <code>Co-Authored-By:</code> or <code>AI-Agent:</code> trailer that identifies claude-code (Claude), cursor, copilot, codex, gemini, aider, devin or windsurf itself. People who merely share an agent's name are not mistaken for it.</p><p class="benefit">One record format across agents, with no vendor lock-in.</p></div>
     <div class="card"><h3>Prompts linked to commits</h3><p>When a commit includes files Claude Code edited, the commit event carries the prompts from that session.</p><p class="benefit">Blame can show the prompt, not only the commit message.</p></div>
   </div>
@@ -65,7 +65,7 @@
 <section class="section"><div class="container">
   <div class="section-head"><h2>Reliability and privacy</h2></div>
   <div class="grid two">
-    <div class="card"><h3>Offline queue</h3><p>Events that cannot be sent are kept in a local file and sent with the next successful event. Invalid events the server rejects are dropped.</p><p class="benefit">Working offline does not silently skip events.</p></div>
+    <div class="card"><h3>Offline queue</h3><p>Events that cannot be sent are kept in a local file and sent with the next successful event. Invalid events, and events sent with an API key the server rejects, are dropped. Every event has an ID, so one sent twice is stored once.</p><p class="benefit">Working offline does not silently skip events.</p></div>
     <div class="card"><h3>Hooks stay out of the way</h3><p>Silent on stdout, always exit 0, and time out (5 seconds for the Claude Code hooks, 4 seconds per API call).</p><p class="benefit">A Whyline problem never blocks your commit or the agent.</p></div>
     <div class="card"><h3>Prompt text opt-out</h3><p><code>--no-prompts</code> or <code>WHYLINE_NO_PROMPTS=1</code> records that a prompt happened without sending or remembering its text.</p><p class="benefit">Keep sensitive prompts on your machine.</p></div>
     <div class="card"><h3>Hashed keys</h3><p>Workspace API keys are stored as SHA-256 hashes. Signup IP addresses are stored as hashes and used to rate-limit workspace creation to 10 per hour.</p><p class="benefit">A database leak does not reveal usable keys.</p></div>

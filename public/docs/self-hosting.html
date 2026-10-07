@@ -58,7 +58,7 @@ pnpm start</pre></div>
 
     <h2 id="vercel-supabase">Deploy on Vercel and Supabase</h2>
     <ol>
-      <li>In the Supabase SQL editor, run <a href="https://github.com/Gauravkumar6617/whyline/blob/main/supabase.sql" rel="noopener"><code>supabase.sql</code></a>. The tables are prefixed <code>whyline_</code>, so they can share a project.</li>
+      <li>In the Supabase SQL editor, run <a href="https://github.com/Gauravkumar6617/whyline/blob/main/supabase.sql" rel="noopener"><code>supabase.sql</code></a>. The tables are prefixed <code>whyline_</code>, so they can share a project. The file is safe to run again: when upgrading an existing deployment, run it before deploying the new code, so the <code>event_id</code> column and its unique index exist when the server starts writing them.</li>
       <li>Import the repository into Vercel. No build settings are needed; <code>vercel.json</code> serves the <code>public/</code> folder and the functions in <code>api/</code>.</li>
       <li>Set the environment variables <code>SUPABASE_URL</code> (or <code>NEXT_PUBLIC_SUPABASE_URL</code>, which the Vercel Supabase integration sets) and <code>SUPABASE_SERVICE_ROLE_KEY</code>.</li>
     </ol>
@@ -69,7 +69,7 @@ pnpm start</pre></div>
     <p>This runs the test suite against your Supabase project and creates a few test workspaces.</p>
 
     <h2 id="open-signup">Signup is open</h2>
-    <p>Anyone who can reach your server can create a workspace through <code>POST /api/workspaces</code>, limited to 10 per hour per address. The address comes from the first <code>X-Forwarded-For</code> value, which is only trustworthy if a proxy you control sets it. Without that header, as when you run the server directly, every signup counts against one shared limit. If the server should be private, restrict access at the network or hosting level.</p>
+    <p>Anyone who can reach your server can create a workspace through <code>POST /api/workspaces</code>, limited to 10 per hour per address (per /64 network for IPv6). The self-hosted server uses the address of the connection and ignores <code>X-Forwarded-For</code>, because any client can send that header. Behind a reverse proxy, set <code>WHYLINE_TRUST_PROXY</code> to the number of proxies in front of the server (usually <code>1</code>); the address is then read from the <code>X-Forwarded-For</code> entry those proxies added, and anything the client put in front of it is ignored. Without it, every request through the proxy shares the proxy's single limit. On Vercel the platform sets the header, so nothing needs configuring. If the server should be private, restrict access at the network or hosting level.</p>
 
     <h2 id="layout">Repository layout</h2>
     <div class="table-wrap" role="region" aria-label="Repository layout" tabindex="0"><table>

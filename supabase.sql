@@ -22,11 +22,17 @@ create table if not exists whyline_events (
   prompt text,
   summary text,
   files jsonb not null default '[]',
-  commit_sha text
+  commit_sha text,
+  event_id text
 );
 
 create index if not exists whyline_events_ws on whyline_events (workspace_id, id);
 create index if not exists whyline_events_commit on whyline_events (workspace_id, commit_sha);
+
+-- Idempotency key: a retried event (same event_id) is stored once. Rows without one (older CLIs) never conflict.
+-- Existing deploys: run these two statements BEFORE deploying the server code that writes event_id. Safe to re-run.
+alter table whyline_events add column if not exists event_id text;
+create unique index if not exists whyline_events_event_id on whyline_events (workspace_id, event_id);
 
 -- RLS on with no policies: the anon/public key gets nothing; only the server's service role key can read or write.
 alter table whyline_workspaces enable row level security;

@@ -1,66 +1,120 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process';
-import { readFileSync, writeFileSync, appendFileSync, mkdirSync, existsSync, chmodSync, renameSync, unlinkSync, readdirSync, statSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import { readFileSync, writeFileSync, appendFileSync, mkdirSync, existsSync, chmodSync, renameSync, unlinkSync, readdirSync, statSync, lstatSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join, relative, isAbsolute } from 'node:path';
-import { parseArgs } from 'node:util';
+import { join, relative, isAbsolute, delimiter } from 'node:path';
+import util from 'node:util'; // not `{ parseArgs }`: a missing named export would fail before the version check below can run
 
-const DIR = process.env.WHYLINE_HOME ?? join(homedir(), '.config', 'whyline');
+// Checked before anything else so an old Node gets this message instead of a stack trace. Hooks still exit 0.
+const MIN_NODE = '22.13';
+const [major, minor] = process.versions.node.split('.').map(Number);
+const [minMajor, minMinor] = MIN_NODE.split('.').map(Number);
+if (major < minMajor || (major === minMajor && minor < minMinor)) {
+  console.error(`whyline: Node.js ${MIN_NODE} or newer is required (this is ${process.versions.node}). Update Node and try again.`);
+  process.exit(process.argv[2] === 'hook' ? 0 : 1);
+}
+
+const DIR = process.env.WHYLINE_HOME || join(homedir(), '.config', 'whyline'); // empty counts as unset, never the cwd
 const CONFIG = join(DIR, 'config.json');
 const QUEUE = join(DIR, 'queue.jsonl');
 const EDITS = join(DIR, 'edits.jsonl');
+// The config holds the API key and the queue/edit records hold prompt text: owner-only, even under a loose umask.
+const PRIVATE_FILE = /^(config\.json|edits\.jsonl|queue\.jsonl.*)$/;
+const PRIVATE = { mode: 0o600 };
 // Claude Code kills a hook after 5s. Stop sending queued events a little before that; the rest wait for the next run.
 const DEADLINE = Date.now() + 4500;
 
 const HELP = `whyline: record what AI agents change
 
   whyline login --url <server> --key <wl_...>   save credentials (or set WHYLINE_URL / WHYLINE_KEY)
-    [--no-prompts]                               never send prompt text (or set WHYLINE_NO_PROMPTS=1)
+    [--no-prompts | --prompts]                   stop or resume sending prompt text (kept across logins;
+                                                 WHYLINE_NO_PROMPTS=1 also stops it)
   whyline init                                   install the git post-commit hook in this repo
   whyline blame <file>:<line>                    which commit, agent and prompt produced this line
   whyline events [--since <id>]                  show recent events
   whyline hook claude-code                       (used by the Claude Code plugin, reads hook JSON on stdin)
   whyline hook git                               (used by the git hook)`;
 
+// Errors the user can act on: printed as one line, without a stack trace.
+const fail = (message) => { throw Object.assign(new Error(message), { expected: true }); };
+
+const saved = () => { try { return JSON.parse(readFileSync(CONFIG, 'utf8')); } catch { return {}; } };
+// 1/true/yes/on opt out and 0/false/no/off/empty don't; any other value opts out too, since staying private is the safe guess.
+const optOut = (v) => v !== undefined && !/^(0|false|no|off)?$/i.test(v.trim());
+
+// Prompt text is sent only if neither WHYLINE_NO_PROMPTS nor the saved login opts out: an opt-out always wins.
 function config() {
-  let c = {};
-  try { c = JSON.parse(readFileSync(CONFIG, 'utf8')); } catch {}
+  const c = saved();
   return {
     url: process.env.WHYLINE_URL ?? c.url,
     key: process.env.WHYLINE_KEY ?? c.key,
-    prompts: !process.env.WHYLINE_NO_PROMPTS && c.prompts !== false,
+    prompts: !optOut(process.env.WHYLINE_NO_PROMPTS) && c.prompts !== false,
   };
 }
 
+function ensureDir() {
+  mkdirSync(DIR, { recursive: true, mode: 0o700 });
+  harden();
+}
+
+// Tightens files left by older versions (or a loose umask). Only touches what needs it: chmod changes a file's ctime,
+// which flush() reads to tell a stale claim from a live one.
+function harden() {
+  if (process.platform === 'win32') return; // no POSIX modes; the user profile is already per-user
+  const tighten = (path, mode) => { try { if (statSync(path).mode & 0o077) chmodSync(path, mode); } catch {} };
+  tighten(DIR, 0o700);
+  let names = [];
+  try { names = readdirSync(DIR); } catch {}
+  for (const name of names) if (PRIVATE_FILE.test(name)) tighten(join(DIR, name), 0o600);
+}
+
 async function api(method, path, body, { url, key } = config(), timeout = 4000) {
-  if (!url || !key) throw new Error('not logged in: run `whyline login --url <server> --key <key>`');
-  const res = await fetch(url.replace(/\/$/, '') + path, {
-    method,
-    headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' },
-    body: body && JSON.stringify(body),
-    signal: AbortSignal.timeout(timeout),
-  });
+  if (!url || !key) fail('not logged in: run `whyline login --url <server> --key <key>`');
+  let res;
+  try {
+    res = await fetch(url.replace(/\/$/, '') + path, {
+      method,
+      headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' },
+      body: body && JSON.stringify(body),
+      signal: AbortSignal.timeout(timeout),
+    });
+  } catch (err) {
+    let host = url;
+    try { host = new URL(url).host; } catch {} // never echo credentials that may be embedded in the URL
+    const reason = err.cause?.code ?? err.cause?.message ?? err.message;
+    fail(`can't reach ${host}: ${reason.replace(/\/\/[^/@\s]*@/g, '//')}`);
+  }
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw Object.assign(new Error(data.error ?? `HTTP ${res.status}`), { status: res.status });
+  if (res.status === 401 || res.status === 403) {
+    throw Object.assign(new Error(`the server rejected the API key (HTTP ${res.status}). Run \`whyline login --url <server> --key <key>\` with a valid key`), { status: res.status, expected: true });
+  }
+  if (!res.ok) throw Object.assign(new Error(data.error ?? `HTTP ${res.status}`), { status: res.status, expected: true });
   return data;
 }
 
-// Bad input (400/413) can never succeed, so drop it. Anything else (offline, 5xx, wrong key) is retried later.
-const retryable = (err) => err.status !== 400 && err.status !== 413;
+// What a failed send means for the event:
+//   400, 413  the event itself is bad and can never succeed: it is dropped.
+//   401, 403  the key is rejected: the event is dropped too, so a wrong key can't grow the queue forever. Events already
+//             queued (from an outage) are kept, and are sent with the first event that gets through after the key is fixed.
+//   else      offline, timeout, 5xx, 429...: the event is queued and retried on the next run.
+const rejectedKey = (err) => err.status === 401 || err.status === 403;
+const retryable = (err) => err.status !== 400 && err.status !== 413 && !rejectedKey(err);
 
 function enqueue(events) {
-  mkdirSync(DIR, { recursive: true });
+  ensureDir();
   // O_APPEND writes are atomic per call, so parallel hooks can't clobber each other.
-  appendFileSync(QUEUE, events.map((e) => JSON.stringify(e) + '\n').join(''));
+  appendFileSync(QUEUE, events.map((e) => JSON.stringify(e) + '\n').join(''), PRIVATE);
 }
 
-// Never lose an event: failures go to a local queue, flushed on the next successful send.
+// Never lose an event: failures go to a local queue, flushed on the next successful send. Every event carries an
+// event_id from the moment it is created, so a retry of one the server already stored (but whose answer was lost)
+// is recognised by the server and not stored twice.
 async function send(event) {
   try {
     await api('POST', '/api/events', event);
   } catch (err) {
-    if (!retryable(err)) throw err;
-    enqueue([event]);
+    if (retryable(err)) { enqueue([event]); err.queued = true; }
     throw err;
   }
   await flush();
@@ -69,7 +123,7 @@ async function send(event) {
 // A flush claims the queue by renaming it to queue.jsonl.claimed.<ms>.<seq>.<pid>, then sends its events in order,
 // appending a "#" line to that file after each one. If the process dies (Claude Code kills slow hooks), the claim is
 // left behind with its progress marks, and the next run takes it over, so nothing is lost and nothing already sent is repeated.
-// ponytail: an event sent just before a kill, whose "#" was not written yet, is sent again (no idempotency key).
+// An event sent just before a kill, whose "#" was not written yet, is sent again; its event_id makes the server ignore it.
 const CLAIM = /^queue\.jsonl\.(?:claimed\.(\d+)\.(\d+)\.(\d+)|(\d+))$/; // the second form is what older versions left behind
 const STALE_MS = 60e3;
 const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (err) { return err.code === 'EPERM'; } };
@@ -109,7 +163,7 @@ async function flush() {
       try { event = JSON.parse(events[i]); } catch { event = null; } // an unreadable line can never be sent
       if (event) {
         try { await api('POST', '/api/events', event, undefined, Math.min(4000, left)); }
-        catch (err) { if (retryable(err)) return; } // keep this event and the rest for later
+        catch (err) { if (retryable(err) || rejectedKey(err)) return; } // keep this event and the rest for later
       }
       appendFileSync(file, '#\n');
     }
@@ -124,8 +178,8 @@ const cut = (s, n) => (typeof s === 'string' ? s.slice(0, n) : null);
 // Claude edits are remembered locally until a commit includes those files; the commit then carries their prompts,
 // which is what `whyline blame` shows. Records older than a day are dropped.
 function remember(record) {
-  mkdirSync(DIR, { recursive: true });
-  appendFileSync(EDITS, JSON.stringify(record) + '\n');
+  ensureDir();
+  appendFileSync(EDITS, JSON.stringify(record) + '\n', PRIVATE);
 }
 
 // ponytail: a hook appending while this rewrites the file can lose that one local record (blame context only,
@@ -144,7 +198,7 @@ function claimEdits(root, files) {
     const p = lastPrompt[r.session];
     if (p && !prompts.includes(p)) prompts.push(p);
   }
-  writeFileSync(EDITS, keep.map((r) => JSON.stringify(r) + '\n').join(''));
+  writeFileSync(EDITS, keep.map((r) => JSON.stringify(r) + '\n').join(''), PRIVATE);
   return { sessions: [...sessions], prompts };
 }
 
@@ -224,9 +278,9 @@ async function hook(source) {
     if (source === 'claude-code') event = fromClaude(JSON.parse(readFileSync(0, 'utf8')));
     else if (source === 'git') event = fromGit();
     else throw new Error(`unknown hook source: ${source}`);
-    if (event) await send(event);
+    if (event) await send({ event_id: randomUUID(), ...event });
   } catch (err) {
-    console.error(`whyline: ${err.message}${retryable(err) && err.status !== undefined ? ' (queued)' : ''}`);
+    console.error(`whyline: ${err.message}${err.queued ? ' (queued, will retry)' : ''}`);
   }
 }
 
@@ -234,10 +288,10 @@ async function blame(target, lineArg) {
   const m = target?.match(/^(.+):(\d+)$/);
   const file = m ? m[1] : target;
   const line = parseInt(m ? m[2] : lineArg);
-  if (!file || !(line > 0)) throw new Error('usage: whyline blame <file>:<line>');
+  if (!file || !(line > 0)) fail('usage: whyline blame <file>:<line>');
   let out;
   try { out = git(['blame', '-L', `${line},${line}`, '--porcelain', '--', file]); }
-  catch { throw new Error(`can't blame ${file}:${line} (not in a git repo, untracked file, or line out of range)`); }
+  catch { fail(`can't blame ${file}:${line} (not in a git repo, untracked file, or line out of range)`); }
   const sha = out.slice(0, 40);
   const code = out.split('\n').find((l) => l.startsWith('\t'))?.slice(1).trim() ?? '';
   console.log(`${file}:${line}  ${code}`);
@@ -251,39 +305,84 @@ async function blame(target, lineArg) {
   else if (e.agent === 'none') console.log('  no AI prompt linked (human commit, or agent without a hook)');
 }
 
+// Installs `whyline hook git` in the post-commit hook git will actually run (--git-path follows core.hooksPath).
+// A hook that is already there is only edited if it is an executable POSIX shell script: the line goes right after its
+// #! line, so an `exit` further down can't skip it, and it runs in the background, so it can't change the hook's result.
+// Anything else (node, python, a binary, a symlink, a disabled hook) is left alone and init fails with what to do instead.
+const HOOK_LINE = '(whyline hook git >/dev/null 2>&1 &)';
+const SHELL = /^#![ \t]*(\S*\/)?(env[ \t]+)?(sh|bash|dash|zsh|ksh|ash)([ \t].*)?$/;
+
 function init() {
-  const dir = git(['rev-parse', '--path-format=absolute', '--git-path', 'hooks']);
+  let dir;
+  try { dir = git(['rev-parse', '--path-format=absolute', '--git-path', 'hooks']); }
+  catch { fail('not inside a git repository: run `whyline init` in the repository you want to record'); }
   const file = join(dir, 'post-commit');
-  const line = '(whyline hook git >/dev/null 2>&1 &)';
-  const current = existsSync(file) ? readFileSync(file, 'utf8') : '#!/bin/sh\n';
-  if (current.includes('whyline hook git')) return console.log(`already installed: ${file}`);
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(file, current.replace(/\n?$/, '\n') + line + '\n');
-  chmodSync(file, 0o755);
-  console.log(`installed: ${file}`);
+  const yourself = 'Make it run `whyline hook git` in the background yourself, then commit to check.';
+  let current = null, stat = null;
+  try { stat = lstatSync(file); current = stat.isFile() ? readFileSync(file, 'utf8') : null; }
+  catch (err) { if (err.code !== 'ENOENT' && err.code !== 'ENOTDIR') fail(`can't read ${file}: ${err.code ?? err.message}`); }
+  const executable = (path) => process.platform === 'win32' || (statSync(path).mode & 0o111) !== 0;
+
+  let next;
+  if (stat && !stat.isFile()) fail(`${file} is a ${stat.isSymbolicLink() ? 'symlink' : 'directory'}, so whyline won't edit it. ${yourself}`);
+  if (current?.includes('whyline hook git')) {
+    if (!executable(file)) fail(`${file} calls whyline but is not executable, so git skips it. Run \`chmod +x ${file}\`.`);
+  } else if (!current?.trim()) {
+    next = `#!/bin/sh\n${HOOK_LINE}\n`;
+  } else {
+    const [first, ...rest] = current.split('\n');
+    if (!SHELL.test(first)) fail(`${file} already exists and is not a shell script, so whyline won't edit it. ${yourself}`);
+    if (!executable(file)) fail(`${file} exists but is not executable, so git ignores it, and whyline won't switch it on. Make it executable or remove it, then run \`whyline init\` again.`);
+    next = [first, HOOK_LINE, ...rest].join('\n');
+  }
+
+  if (next !== undefined) {
+    try {
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(file, next, { mode: 0o755 }); // the mode applies to a new file; an existing one keeps its own
+    } catch (err) { fail(`can't write ${file}: ${err.code ?? err.message}`); }
+  }
+  // Check the result rather than trusting the write: git runs it only if it is executable and still calls whyline.
+  if (!readFileSync(file, 'utf8').includes('whyline hook git') || !executable(file)) fail(`installing into ${file} did not work. ${yourself}`);
+  console.log(`${next === undefined ? 'already installed' : 'installed'}: ${file}`);
+  const exe = process.platform === 'win32' ? ['whyline.cmd', 'whyline.exe', 'whyline'] : ['whyline'];
+  const onPath = (process.env.PATH ?? '').split(delimiter).some((d) => d && exe.some((x) => existsSync(join(d, x))));
+  if (!onPath) console.error('whyline: warning: `whyline` is not on your PATH, so the hook cannot run it yet. Install the CLI globally (see `whyline --help`).');
 }
 
-const { values: opts, positionals: [cmd, arg, arg2] } = parseArgs({
-  allowPositionals: true,
-  allowNegative: true,
-  options: {
-    url: { type: 'string' }, key: { type: 'string' }, since: { type: 'string' },
-    prompts: { type: 'boolean', default: true }, help: { type: 'boolean', short: 'h' },
-  },
-});
-
 try {
+  let parsed;
+  try {
+    parsed = util.parseArgs({
+      allowPositionals: true,
+      allowNegative: true,
+      options: {
+        url: { type: 'string' }, key: { type: 'string' }, since: { type: 'string' },
+        prompts: { type: 'boolean' }, help: { type: 'boolean', short: 'h' },
+      },
+    });
+  } catch (err) {
+    if (!err.code?.startsWith('ERR_PARSE_ARGS')) throw err;
+    fail(`${err.message.split('. ')[0].replace(/\.$/, '')}. Run \`whyline --help\` for usage.`);
+  }
+  const { values: opts, positionals: [cmd, arg, arg2] } = parsed;
+  harden();
+
   if (cmd === 'hook') await hook(arg);
   else if (cmd === 'init') init();
   else if (cmd === 'blame') await blame(arg, arg2);
   else if (cmd === 'login') {
-    if (!opts.url || !opts.key) throw new Error('usage: whyline login --url <server> --key <key>');
+    if (!opts.url || !opts.key) fail('usage: whyline login --url <server> --key <key>');
     const { workspace } = await api('GET', '/api/events?limit=1', null, opts);
-    mkdirSync(DIR, { recursive: true });
-    writeFileSync(CONFIG, JSON.stringify({ url: opts.url, key: opts.key, prompts: opts.prompts }, null, 2), { mode: 0o600 });
-    console.log(`logged in to workspace "${workspace}"${opts.prompts ? '' : ' (prompt text will not be sent)'}`);
+    // Logging in again keeps an earlier --no-prompts unless --prompts is given.
+    const prompts = opts.prompts ?? saved().prompts ?? true;
+    ensureDir();
+    writeFileSync(CONFIG, JSON.stringify({ url: opts.url, key: opts.key, prompts }, null, 2), PRIVATE);
+    harden(); // an existing config keeps its old mode on write
+    console.log(`logged in to workspace "${workspace}"${prompts ? '' : ' (prompt text will not be sent)'}`);
   } else if (cmd === 'events') {
-    const { events } = await api('GET', `/api/events?since=${parseInt(opts.since) || 0}`);
+    if (opts.since !== undefined && !/^\d+$/.test(opts.since)) fail('--since must be an event id (a whole number)');
+    const { events } = await api('GET', `/api/events?since=${Number(opts.since ?? 0)}`);
     for (const e of events.reverse()) {
       console.log([e.id, e.ts, canonical(e.agent), e.kind, e.author ?? '-', (e.summary ?? e.prompt ?? '').split('\n')[0]].join('\t'));
     }
@@ -292,6 +391,7 @@ try {
     if (cmd && !opts.help) process.exitCode = 1;
   }
 } catch (err) {
-  console.error(`whyline: ${err.message}`);
+  // Anything we didn't anticipate keeps its stack trace, so real bugs can still be reported.
+  console.error(err.expected ? `whyline: ${err.message}` : err);
   process.exitCode = 1;
 }

@@ -49,17 +49,18 @@
     <p class="lead">Three routes. Requests and responses are JSON. The CLI and the dashboard use exactly these.</p>
 
     <h2 id="auth">Authentication</h2>
-    <p>Send the workspace key as a Bearer token: <code>Authorization: Bearer wl_...</code>. <code>POST /api/workspaces</code> needs no key. A missing or wrong key returns 401.</p>
+    <p>Send the workspace key as a Bearer token: <code>Authorization: Bearer wl_...</code> (the word Bearer is case-insensitive). <code>POST /api/workspaces</code> needs no key. A missing, malformed or wrong key returns 401 with <code>WWW-Authenticate: Bearer</code>. API responses are sent with <code>Cache-Control: no-store</code>, and there are no CORS headers: browsers can call the API only from the Whyline site itself.</p>
 
     <h2 id="create-workspace">POST /api/workspaces</h2>
     <p>Create a workspace. Body: <code>{"name": "..."}</code>, 1 to 100 characters (trimmed). Returns 201 with <code>id</code>, <code>name</code> and <code>key</code>. The key is not stored in readable form and cannot be retrieved again.</p>
-    <p>Creation is limited to 10 workspaces per hour per client address, taken from the first <code>X-Forwarded-For</code> value; beyond that you get 429. Requests without that header all count as one source.</p>
+    <p>Creation is limited to 10 workspaces per hour per client address (per /64 network for IPv6); beyond that you get 429. On the hosted service the address is the one Vercel reports. A self-hosted server uses the connection's address and ignores <code>X-Forwarded-For</code> unless it is told to trust a proxy; see <a href="/docs/self-hosting#open-signup">self-hosting</a>.</p>
     <div class="code" data-copy-label="Copy curl command"><pre>curl -X POST https://whyline.wrklyst.com/api/workspaces \
   -H 'content-type: application/json' \
   -d '{"name":"acme-backend"}'</pre></div>
 
     <h2 id="post-event">POST /api/events</h2>
     <p>Record one event. Requires the Bearer key. Returns 201 with <code>{"id": ...}</code>.</p>
+    <p>To make retries safe, send an <code>event_id</code>. An event whose <code>event_id</code> is already stored in the workspace is not stored again: the answer is 200 with the stored event's <code>id</code>. Use a new <code>event_id</code> for every new event; the CLI sends a random UUID. Events without one are always stored.</p>
     <div class="code" data-copy-label="Copy curl command"><pre>curl -X POST https://whyline.wrklyst.com/api/events \
   -H "authorization: Bearer $WHYLINE_KEY" \
   -H 'content-type: application/json' \
@@ -78,8 +79,9 @@
         <tr><td><code>summary</code></td><td>string</td><td>5,000 characters</td><td>Commit message, or tool and file for edits.</td></tr>
         <tr><td><code>commit_sha</code></td><td>string</td><td>64 characters</td><td>Commit hash.</td></tr>
         <tr><td><code>files</code></td><td>array of strings</td><td>1,000 items of up to 1,000 characters</td><td>Paths, relative to the repository when sent by the CLI.</td></tr>
+        <tr><td><code>event_id</code></td><td>string</td><td>100 characters</td><td>Letters, digits, <code>-</code> and <code>_</code>. Idempotency key, unique per workspace.</td></tr>
       </tbody></table></div>
-    <p>The request body can be at most 1,000,000 characters (413 beyond that).</p>
+    <p>The request body can be at most 1,000,000 characters (413 beyond that, also for chunked uploads that send no <code>Content-Length</code>).</p>
 
     <h2 id="list-events">GET /api/events</h2>
     <p>List events, newest first. Requires the Bearer key. Returns 200 with <code>{"workspace": "name", "events": [...]}</code>. Each event has <code>id</code>, <code>ts</code> and the fields above.</p>
@@ -89,7 +91,7 @@
         <tr><td><code>since</code></td><td>Only events with an id greater than this. Default 0.</td></tr>
         <tr><td><code>before</code></td><td>Only events with an id less than this. Use the last id of a page to get the next page.</td></tr>
         <tr><td><code>commit</code></td><td>Only events for this commit. Must be a full 40-character lowercase hex hash, otherwise 400.</td></tr>
-        <tr><td><code>limit</code></td><td>Number of events, 1 to 500. Default 100.</td></tr>
+        <tr><td><code>limit</code></td><td>Maximum number of events, 1 to 500. Default 100. A page holds fewer when events are large, so that a response stays under about 4 MB. To read everything, keep paging with <code>before</code> until a page is empty.</td></tr>
       </tbody></table></div>
     <div class="code" data-copy-label="Copy curl command"><pre>curl "https://whyline.wrklyst.com/api/events?limit=20" \
   -H "authorization: Bearer $WHYLINE_KEY"</pre></div>
@@ -100,7 +102,7 @@
       <thead><tr><th>Status</th><th>When</th></tr></thead>
       <tbody>
         <tr><td><code>400</code></td><td>Invalid JSON, a missing required field, or a field over its limit.</td></tr>
-        <tr><td><code>401</code></td><td>Missing or invalid API key.</td></tr>
+        <tr><td><code>401</code></td><td>Missing, malformed or invalid API key.</td></tr>
         <tr><td><code>404</code></td><td>Unknown route.</td></tr>
         <tr><td><code>413</code></td><td>Request body too large.</td></tr>
         <tr><td><code>429</code></td><td>Too many workspaces created from one IP in the last hour.</td></tr>

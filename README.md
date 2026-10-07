@@ -33,15 +33,21 @@ which commit, which agent. Live at https://whyline.wrklyst.com.
    ```
    Or use the website timeline (search, Export CSV for audits), or `whyline events`.
 
-- **Offline?** Events queue in `~/.config/whyline/queue.jsonl` and are sent with the next one.
-- **Keep prompts private:** `whyline login ... --no-prompts` (or `WHYLINE_NO_PROMPTS=1`) records that a
-  prompt happened but never sends its text.
+- **Offline?** Events queue in `~/.config/whyline/queue.jsonl` (owner-only, like the rest of that directory) and
+  are sent with the next one. Each carries an `event_id`, so a retry is never stored twice. If the server rejects
+  the API key (401/403), new events are not queued and the error says so; queued ones wait for a valid key.
+- **Keep prompts private:** `whyline login ... --no-prompts` (or `WHYLINE_NO_PROMPTS=1`/`true`/`yes`/`on`) records
+  that a prompt happened but never sends its text. Logging in again keeps that until `--prompts`.
+- **`whyline init`** installs into the hooks directory git uses (`core.hooksPath` included). An existing shell
+  hook is kept; any other hook is left untouched and init exits with an error explaining what to add.
 - **How blame links prompts:** Claude Code edits are remembered locally; the next commit that includes
   those files carries the prompts that produced them.
 
 ## Deploy (Vercel + Supabase)
 
 1. Supabase SQL editor: run `supabase.sql` (tables are prefixed `whyline_`, safe in a shared project).
+   **Upgrading:** run it again *before* deploying new code; it adds the `event_id` column and unique index
+   that retries are deduplicated by (safe to re-run).
 2. Vercel: import the repo, no build settings needed (`vercel.json` covers it). Set env vars
    `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`.
 3. Vercel → Domains: add `whyline.wrklyst.com`. Cloudflare DNS: add `CNAME whyline → cname.vercel-dns.com`,
@@ -55,7 +61,10 @@ which commit, which agent. Live at https://whyline.wrklyst.com.
 pnpm start           # SQLite at server/whyline.db, PORT=3000
 pnpm test
 ```
-Node 22.13 or newer, no dependencies.
+Node 22.13 or newer, no dependencies. Behind a reverse proxy, set `WHYLINE_TRUST_PROXY=1` (the number of
+proxies) so the signup limit uses the client address from `X-Forwarded-For`; without it the header is ignored.
+Security headers (CSP etc.) live in `vercel.json` and the self-hosted server reuses them; after editing an inline
+`<script>`, update its hash there (`pnpm test` fails until you do).
 
 ## Layout
 ```

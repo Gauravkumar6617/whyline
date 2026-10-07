@@ -10,7 +10,7 @@ const CLI = new URL('./whyline.js', import.meta.url).pathname;
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // A stand-in server that records every event it receives and every one it answered with success.
-// `mode(n, event)` decides how to answer request n: 'ok' | 'hold' (never answer) | an HTTP status | { delay: ms }.
+// `mode(n, event, req)` decides how to answer request n: 'ok' | 'hold' (never answer) | an HTTP status | { delay: ms }.
 async function stub() {
   const s = { received: [], acked: [], mode: () => 'ok', onReceive: () => {} };
   s.server = http.createServer((req, res) => {
@@ -21,7 +21,7 @@ async function stub() {
       s.received.push(event.prompt);
       const n = s.received.length;
       s.onReceive(n);
-      const act = s.mode(n, event);
+      const act = s.mode(n, event, req);
       const reply = (status) => {
         res.writeHead(status, { 'content-type': 'application/json' });
         res.end(JSON.stringify(status < 300 ? { id: n } : { error: 'nope' }), () => { if (status < 300) s.acked.push(event.prompt); });
@@ -47,14 +47,16 @@ const setup = async () => {
 after(() => servers.forEach((s) => s.close()));
 
 const hookEvent = (prompt) => JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: 's', cwd: '/tmp', prompt });
-const start = (s, home, prompt) => {
-  const p = spawn(process.execPath, [CLI, 'hook', 'claude-code'], { env: { ...process.env, WHYLINE_HOME: home, WHYLINE_URL: s.url, WHYLINE_KEY: 'wl_test' }, stdio: ['pipe', 'ignore', 'ignore'] });
+const start = (s, home, prompt, env = {}) => {
+  const p = spawn(process.execPath, [CLI, 'hook', 'claude-code'], { env: { ...process.env, WHYLINE_HOME: home, WHYLINE_URL: s.url, WHYLINE_KEY: 'wl_test', ...env }, stdio: ['pipe', 'ignore', 'pipe'] });
   const t0 = Date.now();
+  let stderr = '';
+  p.stderr.on('data', (d) => (stderr += d));
   p.stdin.end(hookEvent(prompt));
-  p.done = new Promise((r) => p.on('close', (code, signal) => r({ code, signal, ms: Date.now() - t0 })));
+  p.done = new Promise((r) => p.on('close', (code, signal) => r({ code, signal, stderr, ms: Date.now() - t0 })));
   return p;
 };
-const run = (s, home, prompt) => start(s, home, prompt).done;
+const run = (s, home, prompt, env) => start(s, home, prompt, env).done;
 const queued = (n, prefix = 'q') => Array.from({ length: n }, (_, i) => `${prefix}${i}`);
 const line = (prompt) => JSON.stringify({ ts: new Date().toISOString(), agent: 'claude-code', kind: 'prompt', prompt }) + '\n';
 const seed = (home, prompts, file = 'queue.jsonl') => writeFileSync(join(home, file), prompts.map(line).join(''));
@@ -165,5 +167,82 @@ test('unreadable lines and events the server rejects as invalid are dropped with
   writeFileSync(join(home, 'queue.jsonl'), line('q0') + '{not json\n' + line('q1') + line('q2'));
   await run(s, home, 'primary');
   assert.deepEqual(s.acked, ['primary', 'q0', 'q2']);
+  assert.deepEqual(leftovers(home), []);
+});
+
+// --- B7: a rejected key must not grow the queue or be retried forever; temporary failures still queue.
+
+// What is still waiting to be sent: claimed files count their "#" progress marks as sent.
+const queueLines = (home) => leftovers(home).sort().flatMap((f) => {
+  const lines = readFileSync(join(home, f), 'utf8').split('\n').filter(Boolean);
+  return lines.filter((l) => l !== '#').slice(lines.filter((l) => l === '#').length).map((l) => JSON.parse(l).prompt);
+});
+const closedPort = async () => {
+  const srv = http.createServer();
+  await new Promise((r) => srv.listen(0, r));
+  const { port } = srv.address();
+  await new Promise((r) => srv.close(r));
+  return port;
+};
+
+for (const status of [401, 403]) {
+  test(`${status}: the event is dropped, not queued; events already queued are kept untouched and not retried`, async () => {
+    const { s, home } = await setup();
+    s.mode = () => status;
+    seed(home, queued(3));
+    const before = readFileSync(join(home, 'queue.jsonl'), 'utf8');
+    for (const p of ['a', 'b', 'c']) {
+      const r = await run(s, home, p);
+      assert.equal(r.code, 0, 'hooks always exit 0');
+      assert.match(r.stderr, new RegExp(`the server rejected the API key \\(HTTP ${status}\\)\\. Run \`whyline login`));
+      assert.doesNotMatch(r.stderr, /queued|wl_test/, 'not queued, and the key is never printed');
+    }
+    assert.deepEqual(s.received, ['a', 'b', 'c'], 'one attempt per event, and the queue is not retried with a rejected key');
+    assert.equal(readFileSync(join(home, 'queue.jsonl'), 'utf8'), before);
+  });
+}
+
+test('network failure, 500 and timeout: the event is queued and retried later', async () => {
+  const { s, home } = await setup();
+  const port = await closedPort();
+  const offline = await run(s, home, 'offline', { WHYLINE_URL: `http://127.0.0.1:${port}` });
+  assert.match(offline.stderr, new RegExp(`can't reach 127\\.0\\.0\\.1:${port}: ECONNREFUSED \\(queued, will retry\\)`));
+  s.mode = () => 500;
+  await run(s, home, 'server-error');
+  s.mode = () => 'hold';
+  const slow = await run(s, home, 'timeout');
+  assert.ok(slow.ms < 5000, `hook ran ${slow.ms}ms`);
+  assert.deepEqual(queueLines(home), ['offline', 'server-error', 'timeout']);
+
+  s.mode = () => 'ok';
+  await run(s, home, 'back');
+  assert.deepEqual(s.acked, ['back', 'offline', 'server-error', 'timeout']);
+  assert.deepEqual(leftovers(home), []);
+});
+
+test('recovery after the key is corrected: the outage queue is delivered once, in order; rejected events are not', async () => {
+  const { s, home } = await setup();
+  s.mode = (n, e, req) => (req.headers.authorization === 'Bearer wl_good' ? 'ok' : 401);
+  seed(home, queued(3)); // queued during an earlier outage
+  await run(s, home, 'with-bad-key', { WHYLINE_KEY: 'wl_bad' });
+  assert.deepEqual(queueLines(home), queued(3));
+  await run(s, home, 'with-good-key', { WHYLINE_KEY: 'wl_good' });
+  assert.deepEqual(s.acked, ['with-good-key', ...queued(3)]);
+  assert.equal(count(s.received, 'with-bad-key'), 1);
+  assert.deepEqual(leftovers(home), []);
+});
+
+test('mixed queue: delivered, temporarily failing and key-rejected entries each end up delivered exactly once, in order', async () => {
+  const { s, home } = await setup();
+  seed(home, queued(5));
+  s.mode = (n) => (n <= 2 ? 'ok' : 503); // primary and q0 delivered, q1 fails temporarily
+  await run(s, home, 'r1');
+  s.mode = (n, e) => (e.prompt === 'q2' ? 401 : 'ok'); // the key is revoked while q2 is sent
+  await run(s, home, 'r2');
+  assert.deepEqual(queueLines(home), ['q2', 'q3', 'q4'], 'a rejected key stops the flush and keeps the rest');
+  s.mode = () => 'ok';
+  await run(s, home, 'r3');
+  for (const p of [...queued(5), 'r1', 'r2', 'r3']) assert.equal(count(s.acked, p), 1, `${p} delivered ${count(s.acked, p)} times`);
+  assert.ok(inOrder(s.acked, queued(5)));
   assert.deepEqual(leftovers(home), []);
 });

@@ -81,7 +81,7 @@ src/orders.ts:2  const amount_cents = Math.round(order.total * 100);
       <h2>When something goes wrong</h2>
     </div>
     <div class="grid two">
-      <div class="card"><h3>You are offline or the server is down</h3><p>The event is appended to <code>~/.config/whyline/queue.jsonl</code> and sent with the next successful event. Events the server rejects as invalid (HTTP 400 or 413) are dropped, because retrying cannot succeed.</p></div>
+      <div class="card"><h3>You are offline or the server is down</h3><p>The event is appended to <code>~/.config/whyline/queue.jsonl</code> and sent with the next successful event. Events the server rejects as invalid (HTTP 400 or 413) are dropped, because retrying cannot succeed. So are events sent with a rejected API key (401 or 403), so a wrong key cannot fill the queue; events already queued wait until the key is fixed. Every event carries an ID, so one that is sent again is stored once.</p></div>
       <div class="card"><h3>A hook fails</h3><p>Hooks print nothing to stdout and always exit 0, so they cannot fail your commit or interrupt the agent. Errors go to stderr.</p></div>
       <div class="card"><h3>A line has no record</h3><p><code>whyline blame</code> says so: the commit may predate Whyline, or have been made without the git hook. An uncommitted line is reported as "not committed yet".</p></div>
       <div class="card"><h3>You want prompts kept private</h3><p>Log in with <code>--no-prompts</code>. Prompt events are still recorded, without the text. See <a href="/docs/data-and-privacy">data and privacy</a>.</p></div>

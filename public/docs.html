@@ -76,6 +76,7 @@
     <h2 id="git-hook">4b. Connect any agent (commits)</h2>
     <div class="code" data-copy-label="Copy init command"><pre>whyline init</pre></div>
     <p>Run this in each repository. It adds a <code>post-commit</code> hook that records every commit. The agent is read from the commit message: a <code>Co-Authored-By:</code> or <code>AI-Agent:</code> trailer that identifies the agent itself, such as <code>Co-Authored-By: Claude &lt;noreply@anthropic.com&gt;</code>, <code>Co-Authored-By: Cursor Agent &lt;cursoragent@cursor.com&gt;</code> or <code>AI-Agent: cursor</code>. The recognised agents are claude-code (Claude), cursor, copilot, codex, gemini, aider, devin and windsurf. A co-author who only shares an agent's name, such as Devin Smith, is not treated as an agent. Without one, the commit is recorded as agent <code>none</code>.</p>
+    <p>The hook goes wherever git runs hooks, including a <code>core.hooksPath</code> directory. If a <code>post-commit</code> hook already exists, it must be an executable shell script: Whyline adds one line after its <code>#!</code> line and leaves the rest as it was. For any other hook (Node, Python, a binary, a symlink, or one that is not executable), init changes nothing, exits with an error and tells you to call <code>whyline hook git</code> from it yourself.</p>
     <div class="callout"><strong>Your agent has to add the trailer</strong>Whyline does not add it for you. If your agent does not write one, add it to your commit message yourself, for example <code>AI-Agent: cursor</code>.</div>
 
     <h2 id="blame">5. Ask why</h2>
@@ -98,13 +99,13 @@ src/orders.ts:2  const amount_cents = Math.round(order.total * 100);
     </ul>
 
     <h2 id="offline">Offline and privacy</h2>
-    <p>Events that cannot be sent are queued in <code>~/.config/whyline/queue.jsonl</code> and sent with the next event. To keep prompt text off the server, log in with <code>--no-prompts</code>. Details are in <a href="/docs/data-and-privacy">data and privacy</a>.</p>
+    <p>Events that cannot be sent are queued in <code>~/.config/whyline/queue.jsonl</code> and sent with the next event. If the server rejects your API key (401 or 403), new events are not queued and the error says so; events already queued wait until you log in with a valid key. To keep prompt text off the server, log in with <code>--no-prompts</code>. Details are in <a href="/docs/data-and-privacy">data and privacy</a>.</p>
 
     <h2 id="cli-reference">CLI reference</h2>
     <div class="table-wrap" role="region" aria-label="CLI commands" tabindex="0"><table>
       <thead><tr><th>Command</th><th>What it does</th></tr></thead>
       <tbody>
-        <tr><td><code>whyline login --url &lt;server&gt; --key &lt;wl_...&gt; [--no-prompts]</code></td><td>Save credentials. <code>--no-prompts</code> never sends prompt text.</td></tr>
+        <tr><td><code>whyline login --url &lt;server&gt; --key &lt;wl_...&gt; [--no-prompts]</code></td><td>Save credentials. <code>--no-prompts</code> never sends prompt text; logging in again keeps that choice until you pass <code>--prompts</code>.</td></tr>
         <tr><td><code>whyline init</code></td><td>Install the git post-commit hook in this repository.</td></tr>
         <tr><td><code>whyline blame &lt;file&gt;:&lt;line&gt;</code></td><td>Show the commit, agent and prompt behind a line.</td></tr>
         <tr><td><code>whyline events [--since &lt;id&gt;]</code></td><td>Show recent events.</td></tr>
@@ -114,7 +115,7 @@ src/orders.ts:2  const amount_cents = Math.round(order.total * 100);
     <h3>Environment variables</h3>
     <ul>
       <li><code>WHYLINE_URL</code>, <code>WHYLINE_KEY</code>: server and key, overriding the saved config.</li>
-      <li><code>WHYLINE_NO_PROMPTS=1</code>: never send prompt text.</li>
+      <li><code>WHYLINE_NO_PROMPTS=1</code> (or <code>true</code>, <code>yes</code>, <code>on</code>): never send prompt text. <code>0</code>, <code>false</code>, <code>no</code>, <code>off</code> or empty leave it to the saved login setting; an opt-out in either place wins.</li>
       <li><code>WHYLINE_HOME</code>: where config, queue and edit records are kept. Default <code>~/.config/whyline</code>.</li>
     </ul>
     <p>Next: the <a href="/docs/api">API reference</a>, or <a href="/docs/self-hosting">run your own server</a>.</p>

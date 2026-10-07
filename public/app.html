@@ -180,7 +180,7 @@ async function api(path, opts) {
   try { res = await fetch(path, opts); } catch { throw new Error("Can't reach Whyline. Check your connection and try again."); }
   let data = null;
   try { data = await res.json(); } catch {}
-  if (!res.ok) throw new Error(data?.error || `Request failed (${res.status}).`);
+  if (!res.ok) throw Object.assign(new Error(data?.error || `Request failed (${res.status}).`), { status: res.status });
   if (data === null) throw new Error('Unexpected response from the server.');
   return data;
 }
@@ -247,6 +247,14 @@ function render() {
   }
 }
 
+// A rejected key is forgotten at once, so a stale saved key costs one request, not one on every visit.
+function forgetRejectedKey() {
+  store.set(null); key = null; events = [];
+  $('#auth').hidden = false; $('#view').hidden = true; $('#logout').hidden = true;
+  msg('This API key was not accepted: it may be mistyped, or the workspace no longer exists. Paste a valid key to continue.');
+  $('#key').focus();
+}
+
 async function load(k) {
   const wasOpen = !$('#view').hidden;
   $('#auth').hidden = true;
@@ -259,12 +267,14 @@ async function load(k) {
     const data = await api('/api/events?limit=500', { headers: { authorization: 'Bearer ' + k } });
     key = k;
     store.set(k);
+    $('#key').value = '';
     events = data.events.map(withCanonicalAgent);
     $('#ws').textContent = data.workspace;
     $('#logout').hidden = false;
     render();
     return true;
   } catch (err) {
+    if (err.status === 401) { forgetRejectedKey(); return false; }
     if (wasOpen) render(); else { $('#auth').hidden = false; $('#view').hidden = true; }
     msg(err.message);
     return false;
@@ -320,7 +330,8 @@ $('#create').onsubmit = (ev) => {
   });
 };
 
-// Full history for auditors: pages backwards through every event, not just the 500 on screen.
+// Full history for auditors: pages backwards through every event, not just the 500 on screen. A page can hold fewer
+// than 500 when events are large, so only an empty page means the end.
 async function exportCsv() {
   const btn = $('#export');
   btn.disabled = true;
@@ -330,7 +341,7 @@ async function exportCsv() {
       const data = await api(`/api/events?limit=500${before && '&before=' + before}`, { headers: { authorization: 'Bearer ' + key } });
       all.push(...data.events.map(withCanonicalAgent));
       btn.textContent = `Exporting… ${all.length}`;
-      if (data.events.length < 500) break;
+      if (!data.events.length) break;
       before = data.events.at(-1).id;
     }
     const cols = ['id', 'ts', 'agent', 'kind', 'author', 'commit_sha', 'session', 'summary', 'prompt', 'files'];
@@ -348,6 +359,7 @@ async function exportCsv() {
     URL.revokeObjectURL(a.href);
     msg(`Exported ${all.length} events.`, true);
   } catch (err) {
+    if (err.status === 401) return forgetRejectedKey();
     msg(err.message);
   } finally {
     btn.disabled = false;

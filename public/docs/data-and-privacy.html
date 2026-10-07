@@ -64,7 +64,7 @@
     <h2 id="no-prompts">Keeping prompts private</h2>
     <div class="code" data-copy-label="Copy command"><pre>whyline login --url <span class="origin">https://whyline.wrklyst.com</span> --key wl_... --no-prompts
 <span class="c"># or: export WHYLINE_NO_PROMPTS=1</span></pre></div>
-    <p>A prompt event is still recorded, without its text, and the text is not remembered locally, so commits will not carry it either. File paths, commit messages and author emails are still sent. This setting is enforced by the CLI on your machine; the API itself stores whatever a client sends.</p>
+    <p>A prompt event is still recorded, without its text, and the text is not remembered locally, so commits will not carry it either. File paths, commit messages and author emails are still sent. This setting is enforced by the CLI on your machine; the API itself stores whatever a client sends. Logging in again keeps it until you pass <code>--prompts</code>. <code>WHYLINE_NO_PROMPTS</code> turns it on with <code>1</code>, <code>true</code>, <code>yes</code> or <code>on</code>; an opt-out in either place wins.</p>
 
     <h2 id="stored">What the server stores</h2>
     <ul>
@@ -76,11 +76,12 @@
     <h2 id="local">What stays on your machine</h2>
     <p>In <code>~/.config/whyline</code> (or <code>WHYLINE_HOME</code>):</p>
     <ul>
-      <li><code>config.json</code>: server URL and API key in plain text, created with mode 0600 (readable only by you).</li>
+      <li><code>config.json</code>: server URL and API key in plain text.</li>
       <li><code>queue.jsonl</code>: complete events waiting to be sent while offline, including prompt text if prompts are on. Removed as they are sent.</li>
       <li><code>edits.jsonl</code>: recent Claude Code prompts and edited file paths, used to link prompts to commits. Records older than a day are removed, but only when a commit is recorded.</li>
     </ul>
-    <p>Only <code>config.json</code> gets restricted permissions. The queue and edit records are created with your default file permissions, so on a shared machine anyone who can read your config directory can read them.</p>
+    <p>The directory is created with mode 0700 and these files with mode 0600, so only you can read them, whatever your umask. Files left by older versions with wider permissions are tightened the next time Whyline runs. On Windows they rely on your user profile's permissions.</p>
+    <p>The dashboard keeps the API key in this browser's local storage, so it opens your workspace directly next time. <strong>Switch workspace</strong> removes it, and a key the server rejects is removed automatically. The key is never put in a URL.</p>
 
     <h2 id="access">Who can read a workspace</h2>
     <p>Anyone holding the workspace API key can read and write all of its events. There are no user accounts or per-person permissions. Treat the key like a password and share it deliberately. Signing up is open on any server: anyone who can reach the server can create a workspace (see <a href="/docs/self-hosting#open-signup">self-hosting</a> for how the limit works).</p>
