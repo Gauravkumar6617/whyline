@@ -57,7 +57,7 @@ test('git hook detects agent from commit trailer', async () => {
   await new Promise((r) => p.on('close', r));
 
   const { events } = await (await fetch(`${url}/api/events`, { headers: { authorization: `Bearer ${ws.key}` } })).json();
-  assert.deepEqual(events.map((e) => [e.agent, e.kind, e.author]), [['claude', 'commit', 'dev@x.io']]);
+  assert.deepEqual(events.map((e) => [e.agent, e.kind, e.author]), [['claude-code', 'commit', 'dev@x.io']]); // the same agent name the Claude Code plugin uses
 });
 
 test('blame: line -> commit -> the Claude prompt that edited it', async () => {

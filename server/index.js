@@ -32,23 +32,27 @@ async function staticFile(pathname) {
   return null;
 }
 
+const fail = (res, status, error) => res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify({ error }));
+
 export const server = http.createServer(async (req, res) => {
-  const url = new URL(req.url, `http://${req.headers.host ?? 'localhost'}`);
-  if (req.method === 'GET' && !/^\/api(\/|$)/.test(url.pathname)) {
-    try {
+  // Nothing a client sends may take the process down: bad URLs get a 400, anything unexpected a 500.
+  try {
+    let url;
+    try { url = new URL(req.url, `http://${req.headers.host ?? 'localhost'}`); } catch { return fail(res, 400, 'bad request'); }
+    if (req.method === 'GET' && !/^\/api(\/|$)/.test(url.pathname)) {
       const file = await staticFile(url.pathname);
       const notFound = !file && (await staticFile('/404'));
       res.writeHead(file ? 200 : 404, { 'content-type': TYPES[extname(file || notFound)], 'x-content-type-options': 'nosniff' })
         .end(await readFile(file || notFound));
-    } catch (err) {
-      console.error(err);
-      res.writeHead(500).end('internal error');
+      return;
     }
-    return;
+    const hasBody = req.method !== 'GET' && req.method !== 'HEAD';
+    const response = await handle(new Request(url, { method: req.method, headers: req.headers, body: hasBody ? req : undefined, duplex: 'half' }), db);
+    res.writeHead(response.status, Object.fromEntries(response.headers)).end(Buffer.from(await response.arrayBuffer()));
+  } catch (err) {
+    console.error(err);
+    if (res.headersSent) res.destroy(); else fail(res, 500, 'internal error');
   }
-  const hasBody = req.method !== 'GET' && req.method !== 'HEAD';
-  const response = await handle(new Request(url, { method: req.method, headers: req.headers, body: hasBody ? req : undefined, duplex: 'half' }), db);
-  res.writeHead(response.status, Object.fromEntries(response.headers)).end(Buffer.from(await response.arrayBuffer()));
 });
 
 server.listen(Number(process.env.PORT ?? 3000), () => console.log(`whyline on :${server.address().port}`));

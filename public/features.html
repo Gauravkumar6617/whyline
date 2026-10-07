@@ -49,7 +49,7 @@
   <div class="grid two">
     <div class="card"><h3>Claude Code plugin</h3><p>Records each prompt you submit and each file edit made with Edit, Write, MultiEdit or NotebookEdit.</p><p class="benefit">The reason is saved when the change is made, not reconstructed later.</p></div>
     <div class="card"><h3>Git post-commit hook</h3><p><code>whyline init</code> installs a hook in the repository. Every commit becomes an event with its hash, author email, message and changed files. An existing post-commit hook is kept, and running init twice does nothing.</p><p class="benefit">Works for any tool that commits, with no agent-specific integration.</p></div>
-    <div class="card"><h3>Agent detection from trailers</h3><p>A commit is attributed to an agent when its message has a <code>Co-Authored-By:</code> or <code>AI-Agent:</code> trailer naming claude, cursor, copilot, codex, gemini, aider, devin or windsurf.</p><p class="benefit">One record format across agents, with no vendor lock-in.</p></div>
+    <div class="card"><h3>Agent detection from trailers</h3><p>A commit is attributed to an agent when its message has a <code>Co-Authored-By:</code> or <code>AI-Agent:</code> trailer that identifies claude-code (Claude), cursor, copilot, codex, gemini, aider, devin or windsurf itself. People who merely share an agent's name are not mistaken for it.</p><p class="benefit">One record format across agents, with no vendor lock-in.</p></div>
     <div class="card"><h3>Prompts linked to commits</h3><p>When a commit includes files Claude Code edited, the commit event carries the prompts from that session.</p><p class="benefit">Blame can show the prompt, not only the commit message.</p></div>
   </div>
 </div></section>

@@ -155,6 +155,11 @@ const store = {
 };
 let key = null, events = [];
 
+// agent-normalize:start
+// Events stored by older versions say "claude" for what is now "claude-code"; show them as one agent.
+const withCanonicalAgent = (e) => (e.agent === 'claude' ? { ...e, agent: 'claude-code' } : e);
+// agent-normalize:end
+
 function msg(text, ok) {
   const m = $('#msg');
   m.className = text ? 'alert ' + (ok ? 'ok' : 'error') : '';
@@ -254,7 +259,7 @@ async function load(k) {
     const data = await api('/api/events?limit=500', { headers: { authorization: 'Bearer ' + k } });
     key = k;
     store.set(k);
-    events = data.events;
+    events = data.events.map(withCanonicalAgent);
     $('#ws').textContent = data.workspace;
     $('#logout').hidden = false;
     render();
@@ -323,7 +328,7 @@ async function exportCsv() {
     const all = [];
     for (let before = ''; ;) {
       const data = await api(`/api/events?limit=500${before && '&before=' + before}`, { headers: { authorization: 'Bearer ' + key } });
-      all.push(...data.events);
+      all.push(...data.events.map(withCanonicalAgent));
       btn.textContent = `Exporting… ${all.length}`;
       if (data.events.length < 500) break;
       before = data.events.at(-1).id;

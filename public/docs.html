@@ -75,7 +75,7 @@
 
     <h2 id="git-hook">4b. Connect any agent (commits)</h2>
     <div class="code" data-copy-label="Copy init command"><pre>whyline init</pre></div>
-    <p>Run this in each repository. It adds a <code>post-commit</code> hook that records every commit. The agent is read from the commit message: a <code>Co-Authored-By:</code> or <code>AI-Agent:</code> trailer containing claude, cursor, copilot, codex, gemini, aider, devin or windsurf. Without one, the commit is recorded as agent <code>none</code>.</p>
+    <p>Run this in each repository. It adds a <code>post-commit</code> hook that records every commit. The agent is read from the commit message: a <code>Co-Authored-By:</code> or <code>AI-Agent:</code> trailer that identifies the agent itself, such as <code>Co-Authored-By: Claude &lt;noreply@anthropic.com&gt;</code>, <code>Co-Authored-By: Cursor Agent &lt;cursoragent@cursor.com&gt;</code> or <code>AI-Agent: cursor</code>. The recognised agents are claude-code (Claude), cursor, copilot, codex, gemini, aider, devin and windsurf. A co-author who only shares an agent's name, such as Devin Smith, is not treated as an agent. Without one, the commit is recorded as agent <code>none</code>.</p>
     <div class="callout"><strong>Your agent has to add the trailer</strong>Whyline does not add it for you. If your agent does not write one, add it to your commit message yourself, for example <code>AI-Agent: cursor</code>.</div>
 
     <h2 id="blame">5. Ask why</h2>

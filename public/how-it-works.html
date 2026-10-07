@@ -59,7 +59,7 @@
         </ul></div></li>
       <li><div><h3>Commits pick up the prompts that produced them</h3>
         <p>Claude Code edits are also remembered locally in <code>~/.config/whyline/edits.jsonl</code>. When a commit includes files from those edits, the commit event carries the prompts from the same Claude Code session, and the agent is recorded as <code>claude-code</code> even without a trailer. Local records older than a day are dropped.</p>
-        <p>For other agents there is no prompt link. The agent comes from the commit message: a <code>Co-Authored-By:</code> or <code>AI-Agent:</code> trailer that names claude, cursor, copilot, codex, gemini, aider, devin or windsurf. A commit with no match is recorded as <code>none</code>.</p></div></li>
+        <p>For other agents there is no prompt link. The agent comes from the commit message: a <code>Co-Authored-By:</code> or <code>AI-Agent:</code> trailer that identifies claude-code (Claude), cursor, copilot, codex, gemini, aider, devin or windsurf itself, not a person who shares its name. A commit with no match is recorded as <code>none</code>.</p></div></li>
       <li><div><h3>You ask why</h3>
         <p><code>whyline blame src/orders.ts:2</code> runs <code>git blame</code> on that line to get the commit, then asks the API for the event recorded for that commit. It prints the agent, author, time, commit message and, if one was linked, the prompt.</p>
         <div class="code" data-nocopy><span class="label">Example output</span><pre><span class="c">$ whyline blame src/orders.ts:2</span>
