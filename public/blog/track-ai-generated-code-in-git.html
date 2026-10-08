@@ -84,7 +84,7 @@ src/orders.ts:2  const amount_cents = Math.round(order.total * 100);
     <ul>
       <li><strong>Attribution is per commit, not per line.</strong> A commit that mixes your edits with the agent's is attributed to the agent as a whole. Smaller commits give sharper answers.</li>
       <li><strong>Some edits are not seen.</strong> Inline completions such as Cursor Tab, and files changed by a Codex shell command, are not recorded as edits.</li>
-      <li><strong>Rewritten history loses the prompts.</strong> Amending a commit on the same day keeps them. A rebase records the new commits again, with the agent from their trailers but without the prompts.</li>
+      <li><strong>Commits made elsewhere have no record.</strong> Amends and rebases keep the prompts, but a squash merge made on GitHub creates a commit that no hook on your machine sees.</li>
     </ul>
     <div class="cta">
       <a class="btn primary" href="/app#new">Create a workspace</a>

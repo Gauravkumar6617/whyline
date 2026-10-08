@@ -182,3 +182,46 @@ test('after install, a commit runs the existing hook and records the commit thro
   assert.deepEqual(events.map((e) => [e.kind, e.agent, e.commit_sha]), [['commit', 'cursor', sha]]);
   assert.equal(readFileSync(mark, 'utf8'), 'ran\n', 'the existing hook still ran');
 });
+
+test('after a rebase, each rebased commit is recorded once, with the prompt of the commit it replaces', { skip: !posix }, async () => {
+  const ws = await (await fetch(`${url}/api/workspaces`, { method: 'POST', body: '{"name":"rebase"}' })).json();
+  const dir = repo();
+  const r = await init(dir);
+  assert.match(r.out, /^installed: .*post-rewrite$/m);
+
+  const env = { ...process.env, PATH, WHYLINE_HOME: mkdtempSync(join(tmpdir(), 'whyline-home-')), WHYLINE_URL: url, WHYLINE_KEY: ws.key };
+  const g = (...a) => execFileSync('git', ['-c', 'user.email=dev@x.io', '-c', 'user.name=dev', ...a], { cwd: dir, env, encoding: 'utf8' }).trim();
+  // Async, so the server running in this process can answer the hook.
+  const agent = (h) => new Promise((res) => {
+    const p = spawn(process.execPath, [CLI, 'hook', 'claude-code'], { cwd: dir, env });
+    p.on('close', res);
+    p.stdin.end(JSON.stringify({ session_id: 's', cwd: dir, ...h }));
+  });
+  const eventsFor = async (sha) => (await (await fetch(`${url}/api/events?commit=${sha}`, { headers: { authorization: `Bearer ${ws.key}` } })).json()).events;
+  const recorded = async (sha) => { // hooks record in the background
+    for (let i = 0; i < 50; i++) { const events = await eventsFor(sha); if (events.length) return events; await new Promise((res) => setTimeout(res, 100)); }
+    return [];
+  };
+
+  g('commit', '-q', '--allow-empty', '-m', 'base');
+  const base = g('rev-parse', '--abbrev-ref', 'HEAD');
+  g('checkout', '-q', '-b', 'feature');
+  await agent({ hook_event_name: 'UserPromptSubmit', prompt: 'store money as integer cents' });
+  writeFileSync(join(dir, 'orders.js'), 'const amount_cents = 1;\n');
+  await agent({ hook_event_name: 'PostToolUse', tool_name: 'Write', tool_input: { file_path: join(dir, 'orders.js') } });
+  g('add', '.');
+  g('commit', '-q', '-m', 'add orders');
+  const old = g('rev-parse', 'HEAD');
+  assert.equal((await recorded(old))[0]?.agent, 'claude-code');
+
+  g('checkout', '-q', base);
+  g('commit', '-q', '--allow-empty', '-m', 'meanwhile on the base branch');
+  g('checkout', '-q', 'feature');
+  g('rebase', '-q', base);
+  const sha = g('rev-parse', 'HEAD');
+  assert.notEqual(sha, old);
+
+  assert.deepEqual((await recorded(sha)).map((e) => [e.agent, e.prompt]), [['claude-code', 'store money as integer cents']]);
+  await new Promise((res) => setTimeout(res, 1000)); // the post-commit hook that fired during the rebase has had time to run
+  assert.equal((await eventsFor(sha)).length, 1, 'recorded once');
+});

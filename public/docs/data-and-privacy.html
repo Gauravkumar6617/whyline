@@ -85,10 +85,10 @@
     <p>The dashboard keeps the API key in this browser's local storage, so it opens your workspace directly next time. <strong>Switch workspace</strong> removes it, and a key the server rejects is removed automatically. The key is never put in a URL.</p>
 
     <h2 id="access">Who can read a workspace</h2>
-    <p>Anyone holding the workspace API key can read and write all of its events. There are no user accounts or per-person permissions. Treat the key like a password and share it deliberately. Signing up is open on any server: anyone who can reach the server can create a workspace (see <a href="/docs/self-hosting#open-signup">self-hosting</a> for how the limit works).</p>
+    <p>Anyone holding the workspace API key can read and write all of its events. There are no user accounts or per-person permissions. Treat the key like a password and share it deliberately. If it leaks, <code>whyline rotate-key</code> replaces it; the old key stops working at once. Signing up is open on any server: anyone who can reach the server can create a workspace (see <a href="/docs/self-hosting#open-signup">self-hosting</a> for how the limit works).</p>
 
     <h2 id="deletion">Deleting data</h2>
-    <p>The API and dashboard have no way to delete events or workspaces. Whoever runs the server can remove rows directly in the database. For what is worth keeping, and for how long, see <a href="/blog/ai-code-audit-trail">what an audit trail for AI-written code should record</a>.</p>
+    <p><code>whyline delete-workspace --yes</code> (or <code>DELETE /api/workspaces</code>) deletes a workspace and all of its events, for everyone who uses its key. It cannot be undone. The CLI also forgets the key and clears its local queue, so nothing from that workspace is sent again. Single events cannot be deleted; whoever runs the server can remove rows directly in the database. For what is worth keeping, and for how long, see <a href="/blog/ai-code-audit-trail">what an audit trail for AI-written code should record</a>.</p>
   </article>
 </div>
 </main>

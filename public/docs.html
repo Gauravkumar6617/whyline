@@ -57,7 +57,7 @@
     </ul>
 
     <h2 id="workspace">1. Create a workspace</h2>
-    <p>Open the <a href="/app#new">dashboard</a>, enter a name and choose <strong>Create</strong>. Copy the API key (it starts with <code>wl_</code>). It is shown once and cannot be recovered. Anyone with the key can read and write that workspace.</p>
+    <p>Open the <a href="/app#new">dashboard</a>, enter a name and choose <strong>Create</strong>. Copy the API key (it starts with <code>wl_</code>). It is shown once and cannot be recovered; if it leaks, replace it with <code>whyline rotate-key</code>. Anyone with the key can read and write that workspace.</p>
 
     <h2 id="install">2. Install the CLI</h2>
     <p>Whyline is not published to the npm registry. Install it straight from GitHub:</p>
@@ -102,8 +102,8 @@
 
     <h2 id="git-hook">4c. Connect any agent (commits)</h2>
     <div class="code" data-copy-label="Copy init command"><pre>whyline init</pre></div>
-    <p>Run this in each repository. It adds a <code>post-commit</code> hook that records every commit. If the commit includes files a connected agent edited (4a, 4b), it is recorded as that agent with the prompts behind it. Otherwise the agent is read from the commit message: a <code>Co-Authored-By:</code>, <code>AI-Agent:</code> or <code>Assisted-by:</code> trailer that identifies the agent itself, such as <code>Co-Authored-By: Claude &lt;noreply@anthropic.com&gt;</code>, <code>Co-Authored-By: Cursor Agent &lt;cursoragent@cursor.com&gt;</code> or <code>Assisted-by: Claude</code> (the trailer the Linux kernel asks for). The recognised agents are claude-code (Claude), cursor, copilot, codex, gemini, aider, devin and windsurf. A co-author who only shares an agent's name, such as Devin Smith, is not treated as an agent. Without one, the commit is recorded as agent <code>none</code>.</p>
-    <p>The hook goes wherever git runs hooks, including a <code>core.hooksPath</code> directory. If a <code>post-commit</code> hook already exists, it must be an executable shell script: Whyline adds one line after its <code>#!</code> line and leaves the rest as it was. For any other hook (Node, Python, a binary, a symlink, or one that is not executable), init changes nothing, exits with an error and tells you to call <code>whyline hook git</code> from it yourself.</p>
+    <p>Run this in each repository. It adds a <code>post-commit</code> hook that records every commit, and a <code>post-rewrite</code> hook so that commits rewritten by an amend or a rebase keep the agent and prompts of the commits they replace. If the commit includes files a connected agent edited (4a, 4b), it is recorded as that agent with the prompts behind it. Otherwise the agent is read from the commit message: a <code>Co-Authored-By:</code>, <code>AI-Agent:</code> or <code>Assisted-by:</code> trailer that identifies the agent itself, such as <code>Co-Authored-By: Claude &lt;noreply@anthropic.com&gt;</code>, <code>Co-Authored-By: Cursor Agent &lt;cursoragent@cursor.com&gt;</code> or <code>Assisted-by: Claude</code> (the trailer the Linux kernel asks for). The recognised agents are claude-code (Claude), cursor, copilot, codex, gemini, aider, devin and windsurf. A co-author who only shares an agent's name, such as Devin Smith, is not treated as an agent. Without one, the commit is recorded as agent <code>none</code>.</p>
+    <p>The hook goes wherever git runs hooks, including a <code>core.hooksPath</code> directory. If a <code>post-commit</code> hook already exists, it must be an executable shell script: Whyline adds one line after its <code>#!</code> line and leaves the rest as it was. For any other hook (Node, Python, a binary, a symlink, or one that is not executable), init changes nothing, exits with an error and tells you to call <code>whyline hook git</code> from it yourself. A <code>post-rewrite</code> hook that already exists is never edited: init prints a warning, and rebased commits are then recorded without their prompts.</p>
     <div class="callout"><strong>Your agent has to add the trailer</strong>Whyline does not add it for you. If your agent does not write one, add it to your commit message yourself, for example <code>AI-Agent: cursor</code>. The formats are explained in <a href="/blog/ai-commit-trailers">AI commit trailers</a>.</div>
 
     <h2 id="blame">5. Ask why</h2>
@@ -116,7 +116,7 @@ src/orders.ts:2  const amount_cents = Math.round(order.total * 100);
 
   Prompt:
     store money as integer cents</pre></div>
-    <p>Messages you may see: <em>not committed yet</em> for uncommitted lines, and <em>no Whyline record</em> for commits made before setup or without the git hook.</p>
+    <p>Messages you may see: <em>not committed yet</em> for uncommitted lines, and <em>no Whyline record</em> for commits made before setup, without the git hook, or outside your machine, such as a squash merge on GitHub.</p>
 
     <h2 id="view">6. View events</h2>
     <ul>
@@ -133,11 +133,14 @@ src/orders.ts:2  const amount_cents = Math.round(order.total * 100);
       <thead><tr><th>Command</th><th>What it does</th></tr></thead>
       <tbody>
         <tr><td><code>whyline login --url &lt;server&gt; --key &lt;wl_...&gt; [--no-prompts]</code></td><td>Save credentials. <code>--no-prompts</code> never sends prompt text; logging in again keeps that choice until you pass <code>--prompts</code>.</td></tr>
-        <tr><td><code>whyline init</code></td><td>Install the git post-commit hook in this repository.</td></tr>
+        <tr><td><code>whyline init</code></td><td>Install the git post-commit and post-rewrite hooks in this repository.</td></tr>
         <tr><td><code>whyline blame &lt;file&gt;:&lt;line&gt;</code></td><td>Show the commit, agent and prompt behind a line.</td></tr>
         <tr><td><code>whyline events [--since &lt;id&gt;]</code></td><td>Show recent events.</td></tr>
         <tr><td><code>whyline hook claude-code|cursor|codex|gemini</code></td><td>Used by the agent's hooks. Reads hook JSON on stdin.</td></tr>
-        <tr><td><code>whyline hook git</code></td><td>Used by the git hook.</td></tr>
+        <tr><td><code>whyline rotate-key</code></td><td>Replace the workspace's API key and save the new one. The old key stops working at once, for everyone using it.</td></tr>
+        <tr><td><code>whyline delete-workspace --yes</code></td><td>Delete the workspace and all of its events, for everyone using its key. Logs the CLI out and clears its local queue. Cannot be undone.</td></tr>
+        <tr><td><code>whyline hook git</code></td><td>Used by the git post-commit hook.</td></tr>
+        <tr><td><code>whyline hook rewrite amend|rebase</code></td><td>Used by the git post-rewrite hook. Reads the rewritten commits on stdin.</td></tr>
       </tbody></table></div>
     <h3>Environment variables</h3>
     <ul>

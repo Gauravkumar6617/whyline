@@ -41,10 +41,15 @@ which commit, which agent. Live at https://whyline.wrklyst.com.
   the API key (401/403), new events are not queued and the error says so; queued ones wait for a valid key.
 - **Keep prompts private:** `whyline login ... --no-prompts` (or `WHYLINE_NO_PROMPTS=1`/`true`/`yes`/`on`) records
   that a prompt happened but never sends its text. Logging in again keeps that until `--prompts`.
-- **`whyline init`** installs into the hooks directory git uses (`core.hooksPath` included). An existing shell
-  hook is kept; any other hook is left untouched and init exits with an error explaining what to add.
+- **`whyline init`** installs a `post-commit` hook, and a `post-rewrite` hook for rebases, into the hooks directory git
+  uses (`core.hooksPath` included). An existing shell post-commit hook is kept; any other is left untouched and init
+  exits with an error explaining what to add. An existing post-rewrite hook is never edited (init warns instead).
+  Repos set up before the rebase hook existed: run `whyline init` again to add it.
 - **How blame links prompts:** agent edits are remembered locally; the next commit that includes
-  those files carries the prompts that produced them, and amending that commit (within a day) keeps them.
+  those files carries the prompts that produced them. Amending or rebasing that commit keeps them. A squash merge made
+  on GitHub creates a commit no hook sees, so it has no record.
+- **Leaked key?** `whyline rotate-key` replaces it; the old key stops working at once. `whyline delete-workspace --yes`
+  deletes the workspace and all of its events, for everyone using its key.
 
 ## Deploy (Vercel + Supabase)
 

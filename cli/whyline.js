@@ -33,8 +33,11 @@ const HELP = `whyline: record what AI agents change
   whyline init                                   install the git post-commit hook in this repo
   whyline blame <file>:<line>                    which commit, agent and prompt produced this line
   whyline events [--since <id>]                  show recent events
+  whyline rotate-key                             replace the workspace's API key (the old one stops working)
+  whyline delete-workspace --yes                 delete the workspace and all of its events, for everyone
   whyline hook claude-code|cursor|codex|gemini   (used by the agent's hooks, reads hook JSON on stdin)
-  whyline hook git                               (used by the git hook)`;
+  whyline hook git                               (used by the git post-commit hook)
+  whyline hook rewrite amend|rebase              (used by the git post-rewrite hook, reads rewritten commits on stdin)`;
 
 // Errors the user can act on: printed as one line, without a stack trace.
 const fail = (message) => { throw Object.assign(new Error(message), { expected: true }); };
@@ -182,13 +185,15 @@ function remember(record) {
   appendFileSync(EDITS, JSON.stringify(record) + '\n', PRIVATE);
 }
 
+const readEdits = () => { try { return readFileSync(EDITS, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)); } catch { return []; } };
+
 // ponytail: a hook appending while this rewrites the file can lose that one local record (blame context only,
 // the event itself is still sent). Use the rename-claim trick from flush() if it ever matters.
-// What a commit claimed is remembered too, so an amend of it (`amended` is the replaced sha) keeps its agent and prompts.
-// ponytail: amends within the day only, and rebases are not followed; a post-rewrite hook would cover both.
-function claimEdits(root, files, sha, amended) {
-  let records;
-  try { records = readFileSync(EDITS, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)); } catch { return { sessions: [], prompts: [] }; }
+// What a commit claimed is remembered too, so a commit that replaces it (an amend or a rebase; `replaced` are their shas)
+// keeps its agent and prompts. `fetched` are records for replaced commits older than a day, from the server.
+function claimEdits(root, files, sha, replaced = [], fetched = []) {
+  const records = [...fetched, ...readEdits()];
+  if (!records.length) return { sessions: [], prompts: [] };
   const wanted = new Set(files.map((f) => join(root, f)));
   const dayAgo = Date.now() - 864e5;
   const lastPrompt = {}, sessions = new Set(), prompts = [], keep = [];
@@ -197,7 +202,7 @@ function claimEdits(root, files, sha, amended) {
     if (Date.parse(r.ts) < dayAgo) continue;
     if (r.prompt !== undefined) { lastPrompt[r.session] = r.prompt; keep.push(r); continue; }
     if (r.commit !== undefined) {
-      if (r.commit !== amended) { keep.push(r); continue; }
+      if (!replaced.includes(r.commit)) { keep.push(r); continue; }
       for (const s of r.sessions) sessions.add(s);
       for (const p of r.prompts) if (!prompts.includes(p)) prompts.push(p);
       agent = r.agent;
@@ -210,6 +215,7 @@ function claimEdits(root, files, sha, amended) {
     if (p && !prompts.includes(p)) prompts.push(p);
   }
   if (sessions.size) keep.push({ ts: new Date().toISOString(), commit: sha, agent, sessions: [...sessions], prompts });
+  ensureDir();
   writeFileSync(EDITS, keep.map((r) => JSON.stringify(r) + '\n').join(''), PRIVATE);
   return { sessions: [...sessions], prompts, agent };
 }
@@ -292,17 +298,24 @@ function agentFromMessage(message) {
 // Events stored by older versions say "claude" for what is now "claude-code"; show them as one agent.
 const canonical = (agent) => (agent === 'claude' ? 'claude-code' : agent);
 
-function fromGit() {
-  const [sha, email, ...msg] = git(['log', '-1', '--format=%H%n%ae%n%B']).split('\n');
-  const body = msg.join('\n').trim();
-  const files = git(['diff-tree', '--root', '--no-commit-id', '--name-only', '-r', 'HEAD']).split('\n').filter(Boolean);
-  // `git commit --amend` logs "commit (amend)" in the reflog; the entry before it is the commit it replaced.
-  let amended;
+// What the server recorded for a commit: for replaced commits whose local record is gone (older than a day).
+async function recordOf(sha) {
   try {
-    const [now, before] = git(['reflog', '-2', '--format=%H %gs']).split('\n');
-    if (/^\S+ commit \(amend\)/.test(now)) amended = before?.split(' ')[0];
-  } catch {} // no reflog (core.logAllRefUpdates off): treated as a new commit
-  const { sessions, prompts, agent } = claimEdits(git(['rev-parse', '--show-toplevel']), files, sha, amended);
+    const { events } = await api('GET', `/api/events?commit=${sha}&limit=10`);
+    const e = events.find((e) => e.agent !== 'none');
+    return e && { ts: new Date().toISOString(), commit: sha, agent: canonical(e.agent), sessions: e.session ? [e.session] : [], prompts: e.prompt ? [e.prompt] : [] };
+  } catch {} // offline, or not logged in: the commit is recorded without them
+}
+
+// `claim`: whether the commit takes agent edits made since the last commit. A rebased commit only inherits.
+async function commitEvent(sha, replaced, claim) {
+  const [, email, ...msg] = git(['log', '-1', '--format=%H%n%ae%n%B', sha]).split('\n');
+  const body = msg.join('\n').trim();
+  const files = git(['diff-tree', '--root', '--no-commit-id', '--name-only', '-r', sha]).split('\n').filter(Boolean);
+  const local = new Set(readEdits().map((r) => r.commit).filter(Boolean));
+  const fetched = [];
+  for (const old of replaced) if (!local.has(old)) { const r = await recordOf(old); if (r) fetched.push(r); }
+  const { sessions, prompts, agent } = claimEdits(git(['rev-parse', '--show-toplevel']), claim ? files : [], sha, replaced, fetched);
   return {
     ts: new Date().toISOString(),
     agent: agentFromMessage(body) ?? agent ?? 'none',
@@ -316,15 +329,53 @@ function fromGit() {
   };
 }
 
-async function hook(source) {
+const hookPath = (name) => git(['rev-parse', '--path-format=absolute', '--git-path', `hooks/${name}`]);
+const REWRITE_CALL = 'whyline hook rewrite';
+
+// post-commit. Commits a rebase makes are left to the post-rewrite hook, which runs when the rebase is done and knows
+// which commit each one replaces. This hook runs in the background, so HEAD may already be a later rebase commit by
+// now; the reflog says how HEAD got there either way. Without the post-rewrite hook (installed before it existed),
+// rebased commits are still recorded here, without their prompts.
+async function fromGit() {
+  const sha = git(['rev-parse', 'HEAD']);
+  let log = [];
+  try { log = git(['reflog', '-50', '--format=%H %gs']).split('\n'); } catch {} // no reflog (core.logAllRefUpdates off)
+  let rewriteHook = false;
+  try { rewriteHook = readFileSync(hookPath('post-rewrite'), 'utf8').includes(REWRITE_CALL); } catch {}
+  if (rewriteHook && log.some((l) => l.startsWith(`${sha} rebase`) || l.startsWith(`${sha} pull --rebase`))) return null;
+  // `git commit --amend` logs "commit (amend)"; the reflog entry before it is the commit it replaced.
+  const amended = /^\S+ commit \(amend\)/.test(log[0] ?? '') ? log[1]?.split(' ')[0] : undefined;
+  return commitEvent(sha, amended ? [amended] : [], true);
+}
+
+// post-rewrite: git passes "<old sha> <new sha>" per rewritten commit on stdin (several old ones for a squash).
+async function fromRewrite(kind, input) {
+  if (kind !== 'rebase') return []; // amends are recorded by the post-commit hook
+  const olds = new Map();
+  for (const [old, sha] of input.split('\n').map((l) => l.split(' '))) {
+    if (sha && old !== sha) olds.set(sha, [...(olds.get(sha) ?? []), old]);
+  }
+  const events = [];
+  for (const [sha, replaced] of olds) events.push(await commitEvent(sha, replaced, false));
+  return events;
+}
+
+async function hook(source, kind) {
   // Hooks must never break the agent or the commit: nothing on stdout but the agent's expected reply, always exit 0.
   if (Object.hasOwn(REPLY, source)) process.stdout.write(REPLY[source]);
   try {
-    let event;
-    if (Object.hasOwn(READERS, source)) event = fromAgent(source, JSON.parse(readFileSync(0, 'utf8')));
-    else if (source === 'git') event = fromGit();
+    let events;
+    if (Object.hasOwn(READERS, source)) events = [fromAgent(source, JSON.parse(readFileSync(0, 'utf8')))];
+    else if (source === 'git') events = [await fromGit()];
+    else if (source === 'rewrite') events = await fromRewrite(kind, readFileSync(0, 'utf8'));
     else throw new Error(`unknown hook source: ${source}`);
-    if (event) await send({ event_id: randomUUID(), ...event });
+    const ready = events.filter(Boolean).map((e) => ({ event_id: randomUUID(), ...e }));
+    for (const [i, event] of ready.entries()) {
+      try { await send(event); } catch (err) {
+        if (err.queued && i + 1 < ready.length) enqueue(ready.slice(i + 1)); // send() queued this one; keep the rest too
+        throw err;
+      }
+    }
   } catch (err) {
     console.error(`whyline: ${err.message}${err.queued ? ' (queued, will retry)' : ''}`);
   }
@@ -356,6 +407,7 @@ async function blame(target, lineArg) {
 // #! line, so an `exit` further down can't skip it, and it runs in the background, so it can't change the hook's result.
 // Anything else (node, python, a binary, a symlink, a disabled hook) is left alone and init fails with what to do instead.
 const HOOK_LINE = '(whyline hook git >/dev/null 2>&1 &)';
+const REWRITE_LINE = `input=$(cat); (printf '%s\\n' "$input" | ${REWRITE_CALL} "$1" >/dev/null 2>&1 &)`;
 const SHELL = /^#![ \t]*(\S*\/)?(env[ \t]+)?(sh|bash|dash|zsh|ksh|ash)([ \t].*)?$/;
 
 function init() {
@@ -393,6 +445,19 @@ function init() {
   console.log(`${next === undefined ? 'already installed' : 'installed'}: ${file}`);
   const exe = process.platform === 'win32' ? ['whyline.cmd', 'whyline.exe', 'whyline'] : ['whyline'];
   const onPath = (process.env.PATH ?? '').split(delimiter).some((d) => d && exe.some((x) => existsSync(join(d, x))));
+  // Rebases: post-rewrite lists each rewritten commit's old and new sha, so the new commits keep their prompts. Only ever
+  // created, never edited: the line reads the hook's stdin (a background job would get /dev/null), which a hook that
+  // is already there needs for itself.
+  const rewrite = join(dir, 'post-rewrite');
+  try {
+    writeFileSync(rewrite, `#!/bin/sh\n${REWRITE_LINE}\n`, { mode: 0o755, flag: 'wx' });
+    console.log(`installed: ${rewrite}`);
+  } catch (err) {
+    let current = '';
+    try { current = readFileSync(rewrite, 'utf8'); } catch {}
+    if (current.includes(REWRITE_CALL)) console.log(`already installed: ${rewrite}`);
+    else console.error(`whyline: warning: ${err.code === 'EEXIST' ? `${rewrite} already exists` : `can't write ${rewrite}: ${err.code ?? err.message}`}, so rebased commits will be recorded without their prompts. To fix it, pass that hook's stdin to \`${REWRITE_CALL} "$1"\`.`);
+  }
   if (!onPath) console.error('whyline: warning: `whyline` is not on your PATH, so the hook cannot run it yet. Install the CLI globally (see `whyline --help`).');
 }
 
@@ -404,7 +469,7 @@ try {
       allowNegative: true,
       options: {
         url: { type: 'string' }, key: { type: 'string' }, since: { type: 'string' },
-        prompts: { type: 'boolean' }, help: { type: 'boolean', short: 'h' },
+        prompts: { type: 'boolean' }, yes: { type: 'boolean' }, help: { type: 'boolean', short: 'h' },
       },
     });
   } catch (err) {
@@ -414,7 +479,7 @@ try {
   const { values: opts, positionals: [cmd, arg, arg2] } = parsed;
   harden();
 
-  if (cmd === 'hook') await hook(arg);
+  if (cmd === 'hook') await hook(arg, arg2);
   else if (cmd === 'init') init();
   else if (cmd === 'blame') await blame(arg, arg2);
   else if (cmd === 'login') {
@@ -426,6 +491,25 @@ try {
     writeFileSync(CONFIG, JSON.stringify({ url: opts.url, key: opts.key, prompts }, null, 2), PRIVATE);
     harden(); // an existing config keeps its old mode on write
     console.log(`logged in to workspace "${workspace}"${prompts ? '' : ' (prompt text will not be sent)'}`);
+  } else if (cmd === 'rotate-key') {
+    const { name, key } = await api('POST', '/api/key');
+    const where = process.env.WHYLINE_KEY ? 'WHYLINE_KEY is set, so update it to this key' : `saved to ${CONFIG}`;
+    if (!process.env.WHYLINE_KEY) {
+      ensureDir();
+      writeFileSync(CONFIG, JSON.stringify({ ...saved(), key }, null, 2), PRIVATE);
+    }
+    console.log(`new API key for workspace "${name}": ${key}\n${where}. The old key no longer works: update it wherever else it is used (other machines, CI, the dashboard).`);
+  } else if (cmd === 'delete-workspace') {
+    if (!opts.yes) fail('this deletes the workspace and all of its events, for everyone who uses its key, and cannot be undone. Run `whyline delete-workspace --yes` to confirm');
+    const usedKey = config().key;
+    const { deleted } = await api('DELETE', '/api/workspaces');
+    // Its key is dead, and events still queued for it must not be sent to a workspace logged in later.
+    const { url, key, ...rest } = saved();
+    if (key === usedKey) writeFileSync(CONFIG, JSON.stringify(rest, null, 2), PRIVATE);
+    let names = [];
+    try { names = readdirSync(DIR); } catch {}
+    for (const n of names) if (n.startsWith('queue.jsonl')) unlinkSync(join(DIR, n));
+    console.log(`deleted workspace "${deleted}" and all of its events${key === usedKey ? '; logged out' : ''}`);
   } else if (cmd === 'events') {
     if (opts.since !== undefined && !/^\d+$/.test(opts.since)) fail('--since must be an event id (a whole number)');
     const { events } = await api('GET', `/api/events?since=${Number(opts.since ?? 0)}`);

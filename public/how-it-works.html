@@ -57,7 +57,7 @@
         <ul>
           <li><strong>Claude Code plugin.</strong> On every prompt you submit, a <code>prompt</code> event is sent. After every <code>Edit</code>, <code>Write</code>, <code>MultiEdit</code> or <code>NotebookEdit</code>, an <code>edit</code> event is sent with the file path.</li>
           <li><strong>Cursor, Codex CLI and Gemini CLI hooks.</strong> The same <code>prompt</code> and <code>edit</code> events, from each agent's own hook system (<a href="/docs#other-agents">setup</a>).</li>
-          <li><strong>Git post-commit hook</strong> (installed by <code>whyline init</code>). After every commit, a <code>commit</code> event is sent with the hash, author email, message and changed files.</li>
+          <li><strong>Git post-commit hook</strong> (installed by <code>whyline init</code>). After every commit, a <code>commit</code> event is sent with the hash, author email, message and changed files. After a rebase, a <code>post-rewrite</code> hook records the new commits with the prompts of the commits they replace.</li>
         </ul></div></li>
       <li><div><h2>Commits pick up the prompts that produced them</h2>
         <p>Agent edits are also remembered locally in <code>~/.config/whyline/edits.jsonl</code>. When a commit includes files from those edits, the commit event carries the prompts from the same session, and the commit is recorded as that agent even without a trailer. Local records older than a day are dropped.</p>

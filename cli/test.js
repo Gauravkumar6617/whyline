@@ -1,7 +1,7 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, execFileSync } from 'node:child_process';
-import { mkdtempSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, existsSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -91,6 +91,11 @@ test('blame: line -> commit -> the Claude prompt that edited it', async () => {
   g('commit', '-q', '--amend', '-m', 'add orders, reworded');
   await inRepo(['hook', 'git']);
   assert.match(await inRepo(['blame', 'orders.js:1']), /claude-code · dev@x\.io[^]*reworded[^]*store money as integer cents/);
+  // A day later the local record is gone: an amend then gets the agent and prompt from the server.
+  rmSync(join(home, 'edits.jsonl'));
+  g('commit', '-q', '--amend', '-m', 'add orders, reworded again');
+  await inRepo(['hook', 'git']);
+  assert.match(await inRepo(['blame', 'orders.js:1']), /claude-code · dev@x\.io[^]*again[^]*store money as integer cents/);
   writeFileSync(join(repo, 'orders.js'), 'const amount_cents = 2;\n');
   g('commit', '-q', '-am', 'by hand');
   await inRepo(['hook', 'git']);
@@ -100,4 +105,25 @@ test('blame: line -> commit -> the Claude prompt that edited it', async () => {
   await run(['hook', 'claude-code'], { ...env, WHYLINE_NO_PROMPTS: '1' }, hookIn({ hook_event_name: 'UserPromptSubmit', prompt: 'secret' }));
   const { events } = await (await fetch(`${url}/api/events?limit=1`, { headers: { authorization: `Bearer ${ws.key}` } })).json();
   assert.deepEqual([events[0].kind, events[0].prompt], ['prompt', null]);
+});
+
+test('rotate-key saves the new key and the old one stops working; delete-workspace needs --yes, then logs out', async () => {
+  const ws = await (await fetch(`${url}/api/workspaces`, { method: 'POST', body: '{"name":"keys"}' })).json();
+  const env = { WHYLINE_HOME: mkdtempSync(join(tmpdir(), 'whyline-keys-')), WHYLINE_URL: '', WHYLINE_KEY: '' };
+  delete env.WHYLINE_URL; delete env.WHYLINE_KEY;
+  const status = async (key) => (await fetch(`${url}/api/events`, { headers: { authorization: `Bearer ${key}` } })).status;
+  await run(['login', '--url', url, '--key', ws.key], env);
+
+  const rotated = await run(['rotate-key'], env);
+  const key = rotated.out.match(/wl_\S+/)[0];
+  assert.equal(rotated.code, 0);
+  assert.deepEqual([await status(ws.key), await status(key)], [401, 200]);
+  assert.equal(JSON.parse(readFileSync(join(env.WHYLINE_HOME, 'config.json'), 'utf8')).key, key);
+
+  assert.equal((await run(['delete-workspace'], env)).code, 1);
+  assert.equal(await status(key), 200, 'nothing deleted without --yes');
+  const deleted = await run(['delete-workspace', '--yes'], env);
+  assert.match(deleted.out, /deleted workspace "keys"/);
+  assert.equal(await status(key), 401);
+  assert.equal(JSON.parse(readFileSync(join(env.WHYLINE_HOME, 'config.json'), 'utf8')).key, undefined);
 });

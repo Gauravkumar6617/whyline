@@ -80,7 +80,7 @@
     <ul>
       <li><strong>Full text or not.</strong> Recording that a prompt happened, without its text, still shows that a change was AI-assisted. In Whyline that is <code>--no-prompts</code>.</li>
       <li><strong>Who can read them.</strong> In Whyline, anyone with the workspace key can read everything in the workspace, so share the key as you would a password.</li>
-      <li><strong>How long to keep them.</strong> Whyline keeps events until you delete them from the database yourself; there is no retention setting yet.</li>
+      <li><strong>How long to keep them.</strong> Whyline keeps events until you delete the workspace with <code>whyline delete-workspace</code>; there is no setting yet that removes old events on a schedule.</li>
     </ul>
     <p>The <a href="/docs/data-and-privacy">data and privacy</a> page lists exactly what the CLI sends and keeps.</p>
 
@@ -91,8 +91,8 @@
     <h2 id="whyline">How Whyline covers it</h2>
     <p>Each Whyline event records the agent, prompt, files, commit, author and time. <code>whyline blame</code> goes from a line to its record, the dashboard filters the timeline by file, prompt, agent, author or commit, and Export CSV hands over the full history. Its limits, stated plainly:</p>
     <ul>
-      <li>A workspace has a single API key, with no per-person accounts or permissions.</li>
-      <li>Events cannot be changed or deleted through the API or dashboard, but they are not tamper-evident: anyone with access to the database can change them.</li>
+      <li>A workspace has a single API key, with no per-person accounts or permissions. If it leaks, <code>whyline rotate-key</code> replaces it.</li>
+      <li>Single events cannot be changed or deleted through the API, only a whole workspace. Records are not tamper-evident: anyone with access to the database can change them.</li>
       <li>Prompts are linked for agents with a hook (Claude Code, Cursor, Codex CLI, Gemini CLI); other agents are recorded from their commit trailers.</li>
     </ul>
     <div class="cta">

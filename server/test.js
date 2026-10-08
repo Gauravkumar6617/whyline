@@ -49,5 +49,18 @@ test('workspace -> event -> timeline, with auth and validation', async () => {
   for (let i = 0; i < 8; i++) assert.equal((await call('POST', '/api/workspaces', { name: `w${i}` }))[0], 201);
   assert.equal((await call('POST', '/api/workspaces', { name: 'one-too-many' }))[0], 429);
 
+  // A rotated key replaces the old one at once. Deleting a workspace removes it and its events, and nothing else.
+  await call('POST', '/api/events', { agent: 'a', kind: 'b' }, other.key);
+  assert.equal((await call('POST', '/api/key', null, 'wl_wrong'))[0], 401);
+  const [s4, rotated] = await call('POST', '/api/key', null, ws.key);
+  assert.deepEqual([s4, rotated.name], [200, 'acme']);
+  assert.match(rotated.key, /^wl_/);
+  assert.equal((await call('GET', '/api/events', null, ws.key))[0], 401);
+  assert.equal((await call('GET', '/api/events', null, rotated.key))[1].events.length, 2);
+  assert.equal((await call('DELETE', '/api/workspaces', null, 'wl_wrong'))[0], 401);
+  assert.deepEqual(await call('DELETE', '/api/workspaces', null, rotated.key), [200, { deleted: 'acme' }]);
+  assert.equal((await call('GET', '/api/events', null, rotated.key))[0], 401);
+  assert.equal((await call('GET', '/api/events', null, other.key))[1].events.length, 1);
+
   server.close();
 });

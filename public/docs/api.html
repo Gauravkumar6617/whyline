@@ -47,7 +47,7 @@
     <li><a href="/docs/self-hosting">Self-hosting</a></li></ul></nav>
   <article class="prose">
     <h1>API reference</h1>
-    <p class="lead">Three routes. Requests and responses are JSON. The CLI and the dashboard use exactly these.</p>
+    <p class="lead">Five routes. Requests and responses are JSON. The CLI and the dashboard use exactly these.</p>
 
     <h2 id="auth">Authentication</h2>
     <p>Send the workspace key as a Bearer token: <code>Authorization: Bearer wl_...</code> (the word Bearer is case-insensitive). <code>POST /api/workspaces</code> needs no key. A missing, malformed or wrong key returns 401 with <code>WWW-Authenticate: Bearer</code>. API responses are sent with <code>Cache-Control: no-store</code>, and there are no CORS headers: browsers can call the API only from the Whyline site itself.</p>
@@ -96,6 +96,14 @@
       </tbody></table></div>
     <div class="code" data-copy-label="Copy curl command"><pre>curl "https://whyline.wrklyst.com/api/events?limit=20" \
   -H "authorization: Bearer $WHYLINE_KEY"</pre></div>
+
+    <h2 id="rotate-key">POST /api/key</h2>
+    <p>Replace the workspace's API key. Requires the Bearer key; no body. Returns 200 with <code>{"name": "...", "key": "wl_..."}</code>. The old key stops working at once. <code>whyline rotate-key</code> calls this and saves the new key.</p>
+    <div class="code" data-copy-label="Copy curl command"><pre>curl -X POST "https://whyline.wrklyst.com/api/key" \
+  -H "authorization: Bearer $WHYLINE_KEY"</pre></div>
+
+    <h2 id="delete-workspace">DELETE /api/workspaces</h2>
+    <p>Delete the workspace and all of its events. Requires the Bearer key. Returns 200 with <code>{"deleted": "name"}</code>. It cannot be undone, and the key stops working.</p>
 
     <h2 id="errors">Errors</h2>
     <p>Errors are JSON: <code>{"error": "message"}</code>.</p>

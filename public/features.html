@@ -49,7 +49,7 @@
   <div class="section-head"><h2>Capture</h2></div>
   <div class="grid two">
     <div class="card"><h3>Agent hooks</h3><p>Records each prompt you submit and each file the agent edits, in Claude Code (a plugin), Cursor, Codex CLI and Gemini CLI (their own hook files).</p><p class="benefit">The reason is saved when the change is made, not reconstructed later.</p></div>
-    <div class="card"><h3>Git post-commit hook</h3><p><code>whyline init</code> installs a hook in the repository. Every commit becomes an event with its hash, author email, message and changed files. It follows <code>core.hooksPath</code>. An existing shell hook is kept and still runs; a hook in another language is never edited, and init tells you how to add the call yourself. Running init twice does nothing.</p><p class="benefit">Works for any tool that commits, with no agent-specific integration.</p></div>
+    <div class="card"><h3>Git post-commit hook</h3><p><code>whyline init</code> installs a hook in the repository. Every commit becomes an event with its hash, author email, message and changed files. It follows <code>core.hooksPath</code>. An existing shell hook is kept and still runs; a hook in another language is never edited, and init tells you how to add the call yourself. Running init twice does nothing. A post-rewrite hook keeps the agent and prompts when commits are amended or rebased.</p><p class="benefit">Works for any tool that commits, with no agent-specific integration.</p></div>
     <div class="card"><h3>Agent detection from trailers</h3><p>A commit is attributed to an agent when its message has a <code>Co-Authored-By:</code> or <code>AI-Agent:</code> trailer, or an <code>Assisted-by:</code> trailer (the Linux kernel's convention), that identifies claude-code (Claude), cursor, copilot, codex, gemini, aider, devin or windsurf itself. People who merely share an agent's name are not mistaken for it.</p><p class="benefit">One record format across agents, with no vendor lock-in.</p></div>
     <div class="card"><h3>Prompts linked to commits</h3><p>When a commit includes files a connected agent edited, the commit is attributed to that agent and carries the prompts from that session.</p><p class="benefit">Blame can show the prompt, not only the commit message.</p></div>
   </div>
@@ -70,13 +70,14 @@
     <div class="card"><h3>Hooks stay out of the way</h3><p>Silent on stdout, always exit 0, and time out (5 seconds for the Claude Code hooks, 4 seconds per API call).</p><p class="benefit">A Whyline problem never blocks your commit or the agent.</p></div>
     <div class="card"><h3>Prompt text opt-out</h3><p><code>--no-prompts</code> or <code>WHYLINE_NO_PROMPTS=1</code> records that a prompt happened without sending or remembering its text.</p><p class="benefit">Keep sensitive prompts on your machine.</p></div>
     <div class="card"><h3>Hashed keys</h3><p>Workspace API keys are stored as SHA-256 hashes. Signup IP addresses are stored as hashes and used to rate-limit workspace creation to 10 per hour.</p><p class="benefit">A database leak does not reveal usable keys.</p></div>
+    <div class="card"><h3>Key rotation and deletion</h3><p><code>whyline rotate-key</code> replaces a workspace's key; the old one stops working at once. <code>whyline delete-workspace --yes</code> deletes the workspace and all of its events.</p><p class="benefit">A leaked key is a one-command fix, and your data leaves when you do.</p></div>
   </div>
 </div></section>
 <section class="section"><div class="container">
   <div class="section-head"><h2>Run it your way</h2></div>
   <div class="grid two">
     <div class="card"><h3>Self-host or deploy your own</h3><p>Run the server locally with SQLite, or deploy it to Vercel with Supabase. Both use the same API.</p><p class="benefit">Keep events on infrastructure you control.</p></div>
-    <div class="card"><h3>Small HTTP API</h3><p>Three routes, authenticated with a Bearer key. Documented in the <a href="/docs/api">API reference</a>.</p><p class="benefit">Send events from any tool that can make an HTTP request.</p></div>
+    <div class="card"><h3>Small HTTP API</h3><p>Five routes, authenticated with a Bearer key except signup. Documented in the <a href="/docs/api">API reference</a>.</p><p class="benefit">Send events from any tool that can make an HTTP request.</p></div>
   </div>
 </div></section>
 <section class="section"><div class="container">
@@ -86,7 +87,8 @@
       <li>Prompts and individual edits are captured for Claude Code, Cursor, Codex CLI and Gemini CLI. Other agents are recorded at commit time. Codex edits made by shell commands, and Cursor Tab completions, are not recorded.</li>
       <li>A commit is attributed to an agent only if its message names one, or if a connected agent's edits were recorded locally. Otherwise it is recorded as <code>none</code>.</li>
       <li>A workspace is accessed with a single API key. There are no user accounts or per-person permissions.</li>
-      <li>There is no key recovery or rotation, and no way to delete events or workspaces from the API or dashboard.</li>
+      <li>A lost key cannot be recovered, only replaced. Single events cannot be deleted, only a whole workspace.</li>
+      <li>A squash merge made on GitHub creates a commit that no hook sees, so it has no record and no prompts.</li>
       <li>The dashboard lists the newest 500 events, and its AI share counts commits, not lines. Export CSV for the full history.</li>
     </ul></div>
   <div class="cta" style="margin-top:var(--s5)"><a class="btn primary" href="/docs">Get started</a><a class="btn" href="/app">Open dashboard</a></div>
