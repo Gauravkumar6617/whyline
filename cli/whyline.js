@@ -33,7 +33,7 @@ const HELP = `whyline: record what AI agents change
   whyline init                                   install the git post-commit hook in this repo
   whyline blame <file>:<line>                    which commit, agent and prompt produced this line
   whyline events [--since <id>]                  show recent events
-  whyline hook claude-code                       (used by the Claude Code plugin, reads hook JSON on stdin)
+  whyline hook claude-code|cursor|codex|gemini   (used by the agent's hooks, reads hook JSON on stdin)
   whyline hook git                               (used by the git hook)`;
 
 // Errors the user can act on: printed as one line, without a stack trace.
@@ -184,39 +184,74 @@ function remember(record) {
 
 // ponytail: a hook appending while this rewrites the file can lose that one local record (blame context only,
 // the event itself is still sent). Use the rename-claim trick from flush() if it ever matters.
-function claimEdits(root, files) {
+// What a commit claimed is remembered too, so an amend of it (`amended` is the replaced sha) keeps its agent and prompts.
+// ponytail: amends within the day only, and rebases are not followed; a post-rewrite hook would cover both.
+function claimEdits(root, files, sha, amended) {
   let records;
   try { records = readFileSync(EDITS, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)); } catch { return { sessions: [], prompts: [] }; }
   const wanted = new Set(files.map((f) => join(root, f)));
   const dayAgo = Date.now() - 864e5;
   const lastPrompt = {}, sessions = new Set(), prompts = [], keep = [];
+  let agent;
   for (const r of records) {
     if (Date.parse(r.ts) < dayAgo) continue;
     if (r.prompt !== undefined) { lastPrompt[r.session] = r.prompt; keep.push(r); continue; }
+    if (r.commit !== undefined) {
+      if (r.commit !== amended) { keep.push(r); continue; }
+      for (const s of r.sessions) sessions.add(s);
+      for (const p of r.prompts) if (!prompts.includes(p)) prompts.push(p);
+      agent = r.agent;
+      continue;
+    }
     if (!wanted.has(r.file)) { keep.push(r); continue; }
     sessions.add(r.session);
+    agent = r.agent ?? 'claude-code'; // records from older versions are all Claude Code's
     const p = lastPrompt[r.session];
     if (p && !prompts.includes(p)) prompts.push(p);
   }
+  if (sessions.size) keep.push({ ts: new Date().toISOString(), commit: sha, agent, sessions: [...sessions], prompts });
   writeFileSync(EDITS, keep.map((r) => JSON.stringify(r) + '\n').join(''), PRIVATE);
-  return { sessions: [...sessions], prompts };
+  return { sessions: [...sessions], prompts, agent };
 }
 
-function fromClaude(h) {
+// Each agent's hook JSON (stdin), reduced to one shape. The hook configs that call these are in the README.
+const READERS = {
+  'claude-code': (h) => ({
+    kind: { UserPromptSubmit: 'prompt', PostToolUse: 'edit' }[h.hook_event_name],
+    session: h.session_id, cwd: h.cwd, tool: h.tool_name, files: [h.tool_input?.file_path ?? h.tool_input?.notebook_path],
+  }),
+  // apply_patch names its files inside the patch text.
+  codex: (h) => ({
+    kind: { UserPromptSubmit: 'prompt', PostToolUse: 'edit' }[h.hook_event_name],
+    session: h.session_id, cwd: h.cwd, tool: h.tool_name,
+    files: [...String(h.tool_input?.command ?? '').matchAll(/^\*\*\* (?:(?:Add|Update|Delete) File|Move to): (.+)$/gm)].map((m) => m[1].trim()),
+  }),
+  cursor: (h) => ({
+    kind: { beforeSubmitPrompt: 'prompt', afterFileEdit: 'edit' }[h.hook_event_name],
+    session: h.conversation_id, cwd: h.workspace_roots?.[0], tool: 'Edit', files: [h.file_path],
+  }),
+  gemini: (h) => ({
+    kind: { BeforeAgent: 'prompt', AfterTool: 'edit' }[h.hook_event_name],
+    session: h.session_id, cwd: h.cwd, tool: h.tool_name, files: [h.tool_input?.file_path ?? h.tool_input?.path],
+  }),
+};
+// Cursor and Gemini parse the hook's stdout as JSON. Claude Code and Codex add stdout to the agent's context, so it stays empty.
+const REPLY = { cursor: '{"continue":true}', gemini: '{}' };
+
+function fromAgent(agent, h) {
+  const { kind, session, cwd, tool, files } = READERS[agent](h);
   const ts = new Date().toISOString();
-  const base = { ts, agent: 'claude-code', session: cut(h.session_id, 200), author: cut(gitEmail(h.cwd), 200) };
-  if (h.hook_event_name === 'UserPromptSubmit') {
-    if (!config().prompts) return { ...base, kind: 'prompt' };
-    remember({ ts, session: h.session_id, prompt: h.prompt });
-    return { ...base, kind: 'prompt', prompt: cut(h.prompt, 20000) };
+  const base = { ts, agent, session: cut(session, 200), author: cut(gitEmail(cwd), 200) };
+  if (kind === 'prompt') {
+    if (!config().prompts) return { ...base, kind };
+    remember({ ts, session, prompt: h.prompt });
+    return { ...base, kind, prompt: cut(h.prompt, 20000) };
   }
-  if (h.hook_event_name === 'PostToolUse') {
-    const f = h.tool_input?.file_path ?? h.tool_input?.notebook_path;
-    if (f) remember({ ts, session: h.session_id, file: isAbsolute(f) ? f : join(h.cwd ?? '', f) });
-    const file = f && h.cwd && isAbsolute(f) ? relative(h.cwd, f) : f;
-    return { ...base, kind: 'edit', summary: cut(`${h.tool_name} ${file ?? ''}`.trim(), 5000), files: file ? [cut(file, 1000)] : [] };
-  }
-  return null;
+  const edited = kind === 'edit' ? files.filter((f) => f && typeof f === 'string') : [];
+  if (!edited.length) return null; // not an edit, or one that names no file (a Codex shell command)
+  for (const f of edited) remember({ ts, agent, session, file: isAbsolute(f) ? f : join(cwd ?? '', f) });
+  const shown = edited.slice(0, 1000).map((f) => cut(cwd && isAbsolute(f) ? relative(cwd, f) : f, 1000));
+  return { ...base, kind, summary: cut(`${tool ?? 'Edit'} ${shown.join(' ')}`, 5000), files: shown };
 }
 
 // Agents mark their commits with a Co-Authored-By or AI-Agent trailer. A trailer counts only if it identifies the agent
@@ -233,7 +268,8 @@ const AGENTS = {
   windsurf: { email: [], name: [/^windsurf( cascade)?(\[bot\])?$/], bare: /^windsurf$/ },
 };
 const NON_PERSONAL = /noreply|no-reply|\[bot\]|(^|[^a-z])bot@/;
-const TRAILER = /^(co-authored-by|ai-agent):[ \t]*(.+?)[ \t]*$/gim;
+// Assisted-by is the Linux kernel's convention: "Assisted-by: AGENT_NAME:MODEL_VERSION [TOOLS]" (the agent is before the ':').
+const TRAILER = /^(co-authored-by|ai-agent|assisted-by):[ \t]*(.+?)[ \t]*$/gim;
 
 function agentOf(name, email, explicit) {
   for (const [agent, a] of Object.entries(AGENTS)) {
@@ -245,7 +281,10 @@ function agentOf(name, email, explicit) {
 function agentFromMessage(message) {
   for (const [, kind, value] of message.matchAll(TRAILER)) {
     const m = value.match(/^(.*?)\s*<([^>]*)>$/); // "Name <email>"
-    const agent = agentOf((m ? m[1] : value).trim().toLowerCase(), (m ? m[2] : '').trim().toLowerCase(), kind.toLowerCase() === 'ai-agent');
+    const name = (m ? m[1] : value.replace(/:.*/, '')).trim().toLowerCase(), email = (m ? m[2] : '').trim().toLowerCase();
+    const explicit = kind.toLowerCase() !== 'co-authored-by';
+    // The kernel's current form lists tools after the agent ("Assisted-by: Claude coccinelle sparse"): try the first word too.
+    const agent = agentOf(name, email, explicit) ?? (explicit ? agentOf(name.split(/\s+/)[0], email, true) : undefined);
     if (agent) return agent;
   }
 }
@@ -257,10 +296,16 @@ function fromGit() {
   const [sha, email, ...msg] = git(['log', '-1', '--format=%H%n%ae%n%B']).split('\n');
   const body = msg.join('\n').trim();
   const files = git(['diff-tree', '--root', '--no-commit-id', '--name-only', '-r', 'HEAD']).split('\n').filter(Boolean);
-  const { sessions, prompts } = claimEdits(git(['rev-parse', '--show-toplevel']), files);
+  // `git commit --amend` logs "commit (amend)" in the reflog; the entry before it is the commit it replaced.
+  let amended;
+  try {
+    const [now, before] = git(['reflog', '-2', '--format=%H %gs']).split('\n');
+    if (/^\S+ commit \(amend\)/.test(now)) amended = before?.split(' ')[0];
+  } catch {} // no reflog (core.logAllRefUpdates off): treated as a new commit
+  const { sessions, prompts, agent } = claimEdits(git(['rev-parse', '--show-toplevel']), files, sha, amended);
   return {
     ts: new Date().toISOString(),
-    agent: agentFromMessage(body) ?? (sessions.length ? 'claude-code' : 'none'),
+    agent: agentFromMessage(body) ?? agent ?? 'none',
     kind: 'commit',
     author: cut(email, 200),
     session: cut(sessions.at(-1), 200),
@@ -272,10 +317,11 @@ function fromGit() {
 }
 
 async function hook(source) {
-  // Hooks must never break the agent or the commit: stay silent on stdout, always exit 0.
+  // Hooks must never break the agent or the commit: nothing on stdout but the agent's expected reply, always exit 0.
+  if (Object.hasOwn(REPLY, source)) process.stdout.write(REPLY[source]);
   try {
     let event;
-    if (source === 'claude-code') event = fromClaude(JSON.parse(readFileSync(0, 'utf8')));
+    if (Object.hasOwn(READERS, source)) event = fromAgent(source, JSON.parse(readFileSync(0, 'utf8')));
     else if (source === 'git') event = fromGit();
     else throw new Error(`unknown hook source: ${source}`);
     if (event) await send({ event_id: randomUUID(), ...event });

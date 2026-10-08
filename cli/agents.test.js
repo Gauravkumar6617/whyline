@@ -96,9 +96,9 @@ test('dashboard and CSV show legacy "claude" rows as claude-code, so filtering d
 // ------------------------------------------------------------------ trailers name the agent, not a person who shares its name (B2)
 
 const POSITIVE = {
-  'claude-code': ['Co-Authored-By: Claude <noreply@anthropic.com>', 'Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>', 'Co-authored-by: claude[bot] <209825114+claude[bot]@users.noreply.github.com>', 'AI-Agent: claude-code', 'AI-Agent: Claude'],
-  cursor: ['Co-authored-by: Cursor Agent <cursoragent@cursor.com>', 'AI-Agent: cursor'],
-  copilot: ['Co-authored-by: Copilot <175728472+Copilot@users.noreply.github.com>', 'Co-authored-by: github-copilot[bot] <x@users.noreply.github.com>', 'AI-Agent: copilot'],
+  'claude-code': ['Co-Authored-By: Claude <noreply@anthropic.com>', 'Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>', 'Co-authored-by: claude[bot] <209825114+claude[bot]@users.noreply.github.com>', 'AI-Agent: claude-code', 'AI-Agent: Claude', 'Assisted-by: Claude:claude-3-opus coccinelle sparse', 'Assisted-by: Claude coccinelle sparse'],
+  cursor: ['Co-authored-by: Cursor Agent <cursoragent@cursor.com>', 'AI-Agent: cursor', 'Assisted-by: Cursor'],
+  copilot: ['Co-authored-by: Copilot <175728472+Copilot@users.noreply.github.com>', 'Co-authored-by: github-copilot[bot] <x@users.noreply.github.com>', 'AI-Agent: copilot', 'Assisted-by: GitHub Copilot'],
   codex: ['Co-authored-by: Codex CLI <noreply@openai.com>', 'Co-authored-by: Codex <noreply@openai.com>', 'AI-Agent: codex'],
   gemini: ['Co-authored-by: Gemini CLI <noreply@google.com>', 'AI-Agent: gemini'],
   aider: ['Co-authored-by: aider (gpt-4o) <noreply@aider.chat>', 'AI-Agent: aider'],
@@ -110,7 +110,7 @@ const NEGATIVE = [
   'Co-authored-by: Cursor Johnson <cj@example.com>', 'Co-authored-by: Copilot Jones <cj@example.com>', 'Co-authored-by: Codex Rivera <c@example.com>',
   'Co-authored-by: Alice Gemini <a@example.com>', 'Co-authored-by: Gemini Rossi <g@example.com>', 'Co-authored-by: Aider Khan <a@example.com>',
   'Co-authored-by: Devin Smith <devin@example.com>', 'Co-authored-by: Devin <devin@acme.io>', 'Co-authored-by: Windsurf Pete <w@example.com>',
-  'Reviewed with copilot yesterday', 'Co-authored-by: nobody <n@x.y>', 'AI-Agent: some-new-agent', 'Generated with Claude Code',
+  'Reviewed with copilot yesterday', 'Co-authored-by: nobody <n@x.y>', 'AI-Agent: some-new-agent', 'Assisted-by: some-new-agent:v1', 'Generated with Claude Code',
 ];
 
 test('trailers that identify a supported agent are recognised, and people who share an agent\'s name are not', async () => {
@@ -129,4 +129,56 @@ test('trailers that identify a supported agent are recognised, and people who sh
   assert.equal(events.length, cases.length);
   for (const [i, [trailer, expected]] of cases.entries()) assert.equal(events[i].agent, expected, trailer);
   for (const agent of Object.keys(POSITIVE)) assert.ok(events.some((e) => e.agent === agent), `${agent} was never detected`);
+});
+
+// ------------------------------------------------------------------ prompts and edits from Cursor, Codex and Gemini hooks
+
+// What each agent's hooks send on stdin (field names from their hook docs), and what it expects back on stdout.
+const AGENT_HOOKS = {
+  cursor: {
+    prompt: (dir) => ({ hook_event_name: 'beforeSubmitPrompt', conversation_id: 'c1', workspace_roots: [dir], prompt: 'cursor: add tax' }),
+    edit: (dir) => ({ hook_event_name: 'afterFileEdit', conversation_id: 'c1', workspace_roots: [dir], file_path: join(dir, 'tax.js'), edits: [] }),
+    file: 'tax.js', summary: 'Edit tax.js', reply: '{"continue":true}',
+  },
+  codex: {
+    prompt: (dir) => ({ hook_event_name: 'UserPromptSubmit', session_id: 'x1', cwd: dir, turn_id: 't', prompt: 'codex: add vat' }),
+    edit: (dir) => ({ hook_event_name: 'PostToolUse', session_id: 'x1', cwd: dir, tool_name: 'apply_patch',
+      tool_input: { command: '*** Begin Patch\n*** Add File: vat.js\n+vat\n*** Update File: lib/old.js\n*** Move to: lib/new.js\n@@\n-a\n+b\n*** End Patch\n' } }),
+    file: 'vat.js', summary: 'apply_patch vat.js lib/old.js lib/new.js', reply: '',
+  },
+  gemini: {
+    prompt: (dir) => ({ hook_event_name: 'BeforeAgent', session_id: 'g1', cwd: dir, prompt: 'gemini: add fees' }),
+    edit: (dir) => ({ hook_event_name: 'AfterTool', session_id: 'g1', cwd: dir, tool_name: 'write_file', tool_input: { file_path: join(dir, 'fees.js'), content: 'fees' } }),
+    file: 'fees.js', summary: 'write_file fees.js', reply: '{}',
+  },
+};
+
+for (const [agent, h] of Object.entries(AGENT_HOOKS)) {
+  test(`${agent} hooks record prompts and edits, and the next commit carries the prompt for blame`, async () => {
+    const { ws, env } = await workspace(agent);
+    const { dir, git } = repo();
+    const replies = [
+      await cli(['hook', agent], env, { cwd: dir, input: JSON.stringify(h.prompt(dir)) }),
+      await cli(['hook', agent], env, { cwd: dir, input: JSON.stringify(h.edit(dir)) }),
+    ];
+    assert.deepEqual(replies, [h.reply, h.reply], 'stdout is exactly what the agent expects');
+    writeFileSync(join(dir, h.file), 'x\n');
+    git('add', '.'); git('commit', '-q', '-m', 'no trailer');
+    await cli(['hook', 'git'], env, { cwd: dir });
+
+    const [commit, edit, prompt] = await eventsOf(ws);
+    assert.deepEqual([prompt.agent, prompt.kind, prompt.prompt], [agent, 'prompt', h.prompt(dir).prompt]);
+    assert.deepEqual([edit.agent, edit.kind, edit.summary], [agent, 'edit', h.summary]);
+    assert.deepEqual([commit.agent, commit.kind, commit.prompt], [agent, 'commit', h.prompt(dir).prompt], 'agent and prompt come from the recorded edit');
+    assert.match(await cli(['blame', `${h.file}:1`], env, { cwd: dir }), new RegExp(` · ${agent} · [\\s\\S]*${h.prompt(dir).prompt}`));
+  });
+}
+
+test('agent hook events that edit no file are ignored, and broken input still answers and exits 0', async () => {
+  const { ws, env } = await workspace('ignored');
+  const shell = { hook_event_name: 'PostToolUse', session_id: 'x', cwd: '/r', tool_name: 'Bash', tool_input: { command: 'ls' } };
+  assert.equal(await cli(['hook', 'codex'], env, { input: JSON.stringify(shell) }), '');
+  assert.equal(await cli(['hook', 'cursor'], env, { input: JSON.stringify({ hook_event_name: 'afterTabFileEdit' }) }), '{"continue":true}');
+  assert.equal(await cli(['hook', 'gemini'], env, { input: 'not json' }), '{}');
+  assert.deepEqual(await eventsOf(ws), []);
 });

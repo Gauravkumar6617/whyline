@@ -87,6 +87,15 @@ test('blame: line -> commit -> the Claude prompt that edited it', async () => {
   assert.match(out, /claude-code · dev@x\.io/);
   assert.match(out, /store money as integer cents/);
 
+  // An amend keeps the agent and prompt; the next ordinary commit does not inherit them.
+  g('commit', '-q', '--amend', '-m', 'add orders, reworded');
+  await inRepo(['hook', 'git']);
+  assert.match(await inRepo(['blame', 'orders.js:1']), /claude-code · dev@x\.io[^]*reworded[^]*store money as integer cents/);
+  writeFileSync(join(repo, 'orders.js'), 'const amount_cents = 2;\n');
+  g('commit', '-q', '-am', 'by hand');
+  await inRepo(['hook', 'git']);
+  assert.match(await inRepo(['blame', 'orders.js:1']), / · none · /);
+
   // Opt-out: prompt event recorded, text not sent.
   await run(['hook', 'claude-code'], { ...env, WHYLINE_NO_PROMPTS: '1' }, hookIn({ hook_event_name: 'UserPromptSubmit', prompt: 'secret' }));
   const { events } = await (await fetch(`${url}/api/events?limit=1`, { headers: { authorization: `Bearer ${ws.key}` } })).json();

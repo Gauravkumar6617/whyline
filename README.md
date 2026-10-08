@@ -19,8 +19,11 @@ which commit, which agent. Live at https://whyline.wrklyst.com.
      /plugin marketplace add Gauravkumar6617/whyline
      /plugin install whyline@whyline
      ```
-   - **Any agent** (Cursor, Copilot, Codex, ...): run `whyline init` in each repo. Every commit is
-     recorded; the agent is detected from `Co-Authored-By:` or `AI-Agent:` trailers.
+   - **Cursor, Codex CLI, Gemini CLI** (prompts + edits): add `whyline hook cursor|codex|gemini` to the agent's
+     hook file; copy-paste configs are at https://whyline.wrklyst.com/docs#other-agents.
+   - **Any agent** (Copilot, Aider, ...): run `whyline init` in each repo (do this for the agents above too). Every
+     commit is recorded; the agent comes from edits a connected agent made, or from a `Co-Authored-By:`,
+     `AI-Agent:` or `Assisted-by:` trailer.
 4. Ask why:
    ```sh
    whyline blame src/orders.ts:2
@@ -40,8 +43,8 @@ which commit, which agent. Live at https://whyline.wrklyst.com.
   that a prompt happened but never sends its text. Logging in again keeps that until `--prompts`.
 - **`whyline init`** installs into the hooks directory git uses (`core.hooksPath` included). An existing shell
   hook is kept; any other hook is left untouched and init exits with an error explaining what to add.
-- **How blame links prompts:** Claude Code edits are remembered locally; the next commit that includes
-  those files carries the prompts that produced them.
+- **How blame links prompts:** agent edits are remembered locally; the next commit that includes
+  those files carries the prompts that produced them, and amending that commit (within a day) keeps them.
 
 ## Deploy (Vercel + Supabase)
 
