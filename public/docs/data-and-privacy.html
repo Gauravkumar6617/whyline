@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Data and privacy in Whyline</title>
+<title>Data and privacy in Whyline: what is sent and kept</title>
 <meta name="description" content="What Whyline stores and sends, what stays on your machine, how to keep prompt text private, and who can read a workspace. Based on the code.">
 <link rel="canonical" href="https://whyline.wrklyst.com/docs/data-and-privacy">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Whyline">
-<meta property="og:title" content="Data and privacy in Whyline">
+<meta property="og:title" content="Data and privacy in Whyline: what is sent and kept">
 <meta property="og:description" content="What Whyline stores and sends, what stays on your machine, how to keep prompt text private, and who can read a workspace. Based on the code.">
 <meta property="og:url" content="https://whyline.wrklyst.com/docs/data-and-privacy">
 <meta property="og:image" content="https://whyline.wrklyst.com/og.png">
@@ -32,6 +32,7 @@
       <a href="/how-it-works">How it works</a>
       <a href="/features">Features</a>
       <a href="/docs" aria-current="page">Docs</a>
+      <a href="/blog">Blog</a>
       <a href="https://github.com/Gauravkumar6617/whyline" rel="noopener">GitHub</a>
       <a class="btn primary" href="/app">Open dashboard</a>
     </nav>
@@ -87,7 +88,7 @@
     <p>Anyone holding the workspace API key can read and write all of its events. There are no user accounts or per-person permissions. Treat the key like a password and share it deliberately. Signing up is open on any server: anyone who can reach the server can create a workspace (see <a href="/docs/self-hosting#open-signup">self-hosting</a> for how the limit works).</p>
 
     <h2 id="deletion">Deleting data</h2>
-    <p>The API and dashboard have no way to delete events or workspaces. Whoever runs the server can remove rows directly in the database.</p>
+    <p>The API and dashboard have no way to delete events or workspaces. Whoever runs the server can remove rows directly in the database. For what is worth keeping, and for how long, see <a href="/blog/ai-code-audit-trail">what an audit trail for AI-written code should record</a>.</p>
   </article>
 </div>
 </main>
@@ -98,7 +99,7 @@
       <p>git blame tells you who. Whyline tells you why.</p>
     </div>
     <nav aria-label="Footer: product"><h2>Product</h2><ul>
-      <li><a href="/how-it-works">How it works</a></li><li><a href="/features">Features</a></li><li><a href="/app">Dashboard</a></li></ul></nav>
+      <li><a href="/how-it-works">How it works</a></li><li><a href="/features">Features</a></li><li><a href="/app">Dashboard</a></li><li><a href="/blog">Blog</a></li></ul></nav>
     <nav aria-label="Footer: documentation"><h2>Docs</h2><ul>
       <li><a href="/docs">Getting started</a></li>
       <li><a href="/docs/api">API reference</a></li>

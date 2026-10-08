@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI commit trailers: Co-Authored-By, Assisted-by and AI-Agent</title>
+<meta name="description" content="How AI coding agents credit themselves in git commit messages, what the Linux kernel asks for instead, and how to find AI-assisted commits in git history.">
+<link rel="canonical" href="https://whyline.wrklyst.com/blog/ai-commit-trailers">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Whyline">
+<meta property="og:title" content="AI commit trailers: Co-Authored-By, Assisted-by and AI-Agent">
+<meta property="og:description" content="How AI coding agents credit themselves in git commit messages, what the Linux kernel asks for instead, and how to find AI-assisted commits in git history.">
+<meta property="og:url" content="https://whyline.wrklyst.com/blog/ai-commit-trailers">
+<meta property="og:image" content="https://whyline.wrklyst.com/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Whyline: git blame tells you who. Whyline tells you why.">
+<meta property="article:published_time" content="2026-10-08">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/style.css">
+<script>document.documentElement.classList.add('js')</script>
+<script src="/site.js" defer></script>
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"BlogPosting","headline":"AI commit trailers: Co-Authored-By, Assisted-by and AI-Agent","description":"How AI coding agents credit themselves in git commit messages, what the Linux kernel asks for instead, and how to find AI-assisted commits in git history.","datePublished":"2026-10-08","dateModified":"2026-10-08","image":"https://whyline.wrklyst.com/og.png","mainEntityOfPage":"https://whyline.wrklyst.com/blog/ai-commit-trailers","author":{"@type":"Organization","name":"Whyline","url":"https://whyline.wrklyst.com/"},"publisher":{"@type":"Organization","name":"Whyline","url":"https://whyline.wrklyst.com/"}},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://whyline.wrklyst.com/"},{"@type":"ListItem","position":2,"name":"Blog","item":"https://whyline.wrklyst.com/blog"},{"@type":"ListItem","position":3,"name":"AI commit trailers: Co-Authored-By, Assisted-by and AI-Agent","item":"https://whyline.wrklyst.com/blog/ai-commit-trailers"}]}]}</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="container nav">
+    <a class="brand" href="/"><img src="/logo.svg" alt="" width="28" height="28">Whyline</a>
+    <button type="button" class="btn menu-btn" aria-expanded="false" aria-controls="site-nav">Menu</button>
+    <nav class="nav-links" id="site-nav" aria-label="Main">
+      <a href="/how-it-works">How it works</a>
+      <a href="/features">Features</a>
+      <a href="/docs">Docs</a>
+      <a href="/blog">Blog</a>
+      <a href="https://github.com/Gauravkumar6617/whyline" rel="noopener">GitHub</a>
+      <a class="btn primary" href="/app">Open dashboard</a>
+    </nav>
+  </div>
+</header>
+<main id="main">
+<div class="container">
+  <article class="prose post">
+    <p class="muted"><a href="/blog">Blog</a> · <time datetime="2026-10-08">October 8, 2026</time></p>
+    <h1>AI commit trailers: Co-Authored-By, Assisted-by and AI-Agent</h1>
+    <p class="lead">The cheapest record of AI involvement is one line at the end of a commit message. Here is what agents write there, what some projects require instead, and how to read it back.</p>
+
+    <h2 id="what-is-a-trailer">What a trailer is</h2>
+    <p>A trailer is a <code>Key: value</code> line in the last paragraph of a commit message. git understands them: <code>git interpret-trailers</code> adds and parses them, and <code>git log</code> can print them. The best known is <code>Signed-off-by:</code>. GitHub shows a commit with <code>Co-authored-by:</code> trailers as having several authors.</p>
+    <div class="code" data-nocopy><span class="label">A commit message with a trailer</span><pre>add orders
+
+Store amounts as integer cents to avoid rounding errors.
+
+Co-Authored-By: Claude &lt;noreply@anthropic.com&gt;</pre></div>
+
+    <h2 id="co-authored-by">Co-Authored-By</h2>
+    <p>Many agents credit themselves as a co-author, with an address that identifies the tool rather than a person. Claude Code adds one by default when it writes the commit. Some trailers Whyline recognises:</p>
+    <div class="table-wrap" role="region" aria-label="Example co-author trailers" tabindex="0"><table>
+      <thead><tr><th>Agent</th><th>Trailer</th></tr></thead>
+      <tbody>
+        <tr><td>claude-code</td><td><code>Co-Authored-By: Claude &lt;noreply@anthropic.com&gt;</code></td></tr>
+        <tr><td>cursor</td><td><code>Co-authored-by: Cursor Agent &lt;cursoragent@cursor.com&gt;</code></td></tr>
+        <tr><td>copilot</td><td><code>Co-authored-by: Copilot &lt;175728472+Copilot@users.noreply.github.com&gt;</code></td></tr>
+        <tr><td>aider</td><td><code>Co-authored-by: aider (gpt-5) &lt;noreply@aider.chat&gt;</code></td></tr>
+      </tbody></table></div>
+    <p>A co-author counts as an agent only when the trailer identifies the tool itself. A colleague called Devin with a company address is a person, not the Devin agent.</p>
+
+    <h2 id="assisted-by">Assisted-by</h2>
+    <p>Some projects do not want an AI listed as an author. The Linux kernel's <a href="https://docs.kernel.org/process/coding-assistants.html" rel="noopener">guidance for AI coding assistants</a> asks for an <code>Assisted-by:</code> trailer in the form <code>Assisted-by: LLM [TOOL1] [TOOL2]</code>, where the optional tools are analysis tools such as coccinelle or sparse, and basic tools like git, gcc or an editor are not listed. It also says AI agents must not add <code>Signed-off-by:</code>; certifying the Developer Certificate of Origin is the human submitter's job.</p>
+    <div class="code" data-nocopy><span class="label">Kernel-style trailer</span><pre>Assisted-by: Claude coccinelle sparse</pre></div>
+    <p>Contribution policies differ between projects. If the project you contribute to has one, follow its format exactly.</p>
+
+    <h2 id="ai-agent">AI-Agent</h2>
+    <p>When your agent writes no trailer, add one yourself. Whyline also reads a plain <code>AI-Agent: cursor</code>. It is not a git or GitHub convention, just an unambiguous line: the value is the agent's name and nothing else.</p>
+
+    <h2 id="search">Find AI-assisted commits in your history</h2>
+    <div class="code" data-copy-label="Copy git commands"><pre><span class="c"># each commit with its co-author and Assisted-by values</span>
+git log --format='%h %(trailers:key=Co-authored-by,key=Assisted-by,valueonly,separator=%x2C )'
+
+<span class="c"># how many commits name Claude as a co-author</span>
+git log -i --grep='^co-authored-by: claude' --oneline | wc -l</pre></div>
+    <p>Trailer keys match without regard to case, so <code>Co-Authored-By</code> and <code>Co-authored-by</code> are both found.</p>
+
+    <h2 id="limits">What trailers cannot tell you</h2>
+    <ul>
+      <li>They are optional and editable. Nothing proves that a commit without one had no AI help.</li>
+      <li>They name the agent, not the prompt or the files it edited.</li>
+      <li>When commits are squashed, the trailers survive only if the new message keeps them.</li>
+    </ul>
+    <p>That is why Whyline treats trailers as the fallback, and records prompts and edits through <a href="/docs#other-agents">agent hooks</a> where it can. See <a href="/blog/track-ai-generated-code-in-git">how to track AI-generated code in git</a> for the full setup.</p>
+    <div class="cta">
+      <a class="btn primary" href="/app#new">Create a workspace</a>
+      <a class="btn" href="/docs">Read the docs</a>
+    </div>
+  </article>
+</div>
+</main>
+<footer class="site-footer">
+  <div class="container footer-grid">
+    <div>
+      <a class="brand" href="/"><img src="/logo.svg" alt="" width="28" height="28">Whyline</a>
+      <p>git blame tells you who. Whyline tells you why.</p>
+    </div>
+    <nav aria-label="Footer: product"><h2>Product</h2><ul>
+      <li><a href="/how-it-works">How it works</a></li><li><a href="/features">Features</a></li><li><a href="/app">Dashboard</a></li><li><a href="/blog">Blog</a></li></ul></nav>
+    <nav aria-label="Footer: documentation"><h2>Docs</h2><ul>
+      <li><a href="/docs">Getting started</a></li>
+      <li><a href="/docs/api">API reference</a></li>
+      <li><a href="/docs/data-and-privacy">Data and privacy</a></li>
+      <li><a href="/docs/self-hosting">Self-hosting</a></li></ul></nav>
+    <nav aria-label="Footer: project"><h2>Project</h2><ul>
+      <li><a href="https://github.com/Gauravkumar6617/whyline" rel="noopener">Source on GitHub</a></li><li><a href="https://github.com/Gauravkumar6617/whyline/issues" rel="noopener">Report an issue</a></li></ul></nav>
+  </div>
+</footer>
+</body>
+</html>

@@ -109,3 +109,17 @@ test('CSV export pages until an empty page, so short pages (large events) do not
     'legacy agent name normalised, formula neutralised, quotes escaped');
   assert.match(d.els['#msg'].textContent, /Exported 7 events/);
 });
+
+test('the AI share counts the commits shown, so filtering narrows it to an author or agent', async () => {
+  const commit = (id, agent, author) => ev(id, { kind: 'commit', agent, author, prompt: null });
+  const events = [commit(5, 'claude-code', 'a@x.io'), commit(4, 'cursor', 'b@x.io'), commit(3, 'none', 'b@x.io'), commit(2, 'claude', 'a@x.io'), ev(1)];
+  const d = dashboard({ saved: 'wl_k', pages: () => ({ body: { workspace: 'w', events } }) });
+  await d.settle();
+  assert.match(d.els['#count'].textContent, /AI-assisted commits: 3 of 4 \(75%\), claude-code 2, cursor 1$/);
+  d.els['#q'].value = 'b@x.io';
+  d.els['#q'].oninput();
+  assert.match(d.els['#count'].textContent, /AI-assisted commits: 1 of 2 \(50%\), cursor 1$/);
+  d.els['#q'].value = 'p1'; // matches only the prompt: no commits, no share
+  d.els['#q'].oninput();
+  assert.doesNotMatch(d.els['#count'].textContent, /AI-assisted/);
+});

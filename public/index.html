@@ -20,7 +20,7 @@
 <link rel="stylesheet" href="/style.css">
 <script>document.documentElement.classList.add('js')</script>
 <script src="/site.js" defer></script>
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Whyline","url":"https://whyline.wrklyst.com/","applicationCategory":"DeveloperApplication","description":"A record of what AI agents change in a codebase: which prompt, which files, which commit, which agent."}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"SoftwareApplication","name":"Whyline","url":"https://whyline.wrklyst.com/","applicationCategory":"DeveloperApplication","description":"A record of what AI agents change in a codebase: which prompt, which files, which commit, which agent."},{"@type":"Organization","name":"Whyline","url":"https://whyline.wrklyst.com/","logo":"https://whyline.wrklyst.com/logo.svg","sameAs":["https://github.com/Gauravkumar6617/whyline"]},{"@type":"WebSite","name":"Whyline","url":"https://whyline.wrklyst.com/"}]}</script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -32,6 +32,7 @@
       <a href="/how-it-works">How it works</a>
       <a href="/features">Features</a>
       <a href="/docs">Docs</a>
+      <a href="/blog">Blog</a>
       <a href="https://github.com/Gauravkumar6617/whyline" rel="noopener">GitHub</a>
       <a class="btn primary" href="/app">Open dashboard</a>
     </nav>
@@ -83,16 +84,17 @@ src/orders.ts:2  const amount_cents = Math.round(order.total * 100);
   <div class="container">
     <div class="section-head">
       <h2>Which agents are covered</h2>
-      <p>Claude Code has a plugin. Every other agent is recorded when it commits, if its commit message says which agent wrote it.</p>
+      <p>Claude Code, Cursor, Codex and Gemini CLI send prompts and edits through their hooks. Every other agent is recorded when it commits, if its commit message says which agent wrote it.</p>
     </div>
     <div class="table-wrap" role="region" aria-label="Agent coverage" tabindex="0"><table>
       <thead><tr><th>Source</th><th>Prompts</th><th>Edits</th><th>Commits</th><th>How</th></tr></thead>
       <tbody>
         <tr><td>Claude Code</td><td>Yes</td><td>Yes</td><td>Yes</td><td>The Claude Code plugin, plus the git hook for commits</td></tr>
-        <tr><td>Cursor, Copilot, Codex, Gemini, Aider, Devin, Windsurf</td><td>No</td><td>No</td><td>Yes</td><td>The git hook, when the commit message has a <code>Co-Authored-By:</code> or <code>AI-Agent:</code> trailer naming the agent</td></tr>
+        <tr><td>Cursor, Codex CLI, Gemini CLI</td><td>Yes</td><td>Yes</td><td>Yes</td><td>The agent's own hooks (<a href="/docs#other-agents">setup</a>), plus the git hook for commits</td></tr>
+        <tr><td>Copilot, Aider, Devin, Windsurf</td><td>No</td><td>No</td><td>Yes</td><td>The git hook, when the commit message has a <code>Co-Authored-By:</code>, <code>AI-Agent:</code> or <code>Assisted-by:</code> trailer naming the agent</td></tr>
         <tr><td>Anything else, or no trailer</td><td>No</td><td>No</td><td>Yes, as agent <code>none</code></td><td>The git hook</td></tr>
       </tbody></table></div>
-    <p style="margin-top:var(--s4)" class="muted">The agent has to write the trailer itself. Whyline reads commit messages; it does not look inside those agents.</p>
+    <p style="margin-top:var(--s4)" class="muted">The agent has to write the trailer itself. Whyline reads commit messages; it does not look inside those agents. See <a href="/blog/ai-commit-trailers">AI commit trailers explained</a>.</p>
   </div>
 </section>
 
@@ -103,11 +105,11 @@ src/orders.ts:2  const amount_cents = Math.round(order.total * 100);
       <p>Hooks capture events, a workspace stores them, and you ask why from the terminal or the dashboard.</p>
     </div>
     <ol class="steps">
-      <li><div><h3>Capture</h3><p>The Claude Code plugin and a git post-commit hook send events to your workspace. They never block the agent or the commit.</p></div></li>
+      <li><div><h3>Capture</h3><p>Agent hooks and a git post-commit hook send events to your workspace. They never block the agent or the commit.</p></div></li>
       <li><div><h3>Store</h3><p>Events live in a workspace behind an API key, on the hosted site or on a server you run yourself.</p></div></li>
       <li><div><h3>Ask why</h3><p><code>whyline blame file:line</code> finds the commit behind a line and prints its agent, author and prompt. The dashboard has a searchable timeline and CSV export.</p></div></li>
     </ol>
-    <p style="margin-top:var(--s4)"><a href="/how-it-works">Read the full walkthrough</a> or see <a href="/features">everything that is built today</a>.</p>
+    <p style="margin-top:var(--s4)"><a href="/how-it-works">Read the full walkthrough</a> or see <a href="/features">everything that is built today</a>. New to this? Start with <a href="/blog/track-ai-generated-code-in-git">how to track AI-generated code in git</a>.</p>
   </div>
 </section>
 
@@ -135,7 +137,7 @@ whyline login --url <span class="origin">https://whyline.wrklyst.com</span> --ke
       <p>git blame tells you who. Whyline tells you why.</p>
     </div>
     <nav aria-label="Footer: product"><h2>Product</h2><ul>
-      <li><a href="/how-it-works">How it works</a></li><li><a href="/features">Features</a></li><li><a href="/app">Dashboard</a></li></ul></nav>
+      <li><a href="/how-it-works">How it works</a></li><li><a href="/features">Features</a></li><li><a href="/app">Dashboard</a></li><li><a href="/blog">Blog</a></li></ul></nav>
     <nav aria-label="Footer: documentation"><h2>Docs</h2><ul>
       <li><a href="/docs">Getting started</a></li>
       <li><a href="/docs/api">API reference</a></li>

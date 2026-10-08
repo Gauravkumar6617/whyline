@@ -32,6 +32,7 @@
       <a href="/how-it-works" aria-current="page">How it works</a>
       <a href="/features">Features</a>
       <a href="/docs">Docs</a>
+      <a href="/blog">Blog</a>
       <a href="https://github.com/Gauravkumar6617/whyline" rel="noopener">GitHub</a>
       <a class="btn primary" href="/app">Open dashboard</a>
     </nav>
@@ -47,20 +48,21 @@
 <section class="section first">
   <div class="container">
     <ol class="steps">
-      <li><div><h3>You create a workspace and get a key</h3>
+      <li><div><h2>You create a workspace and get a key</h2>
         <p>A workspace holds one team's events. Creating one in the <a href="/app#new">dashboard</a> returns an API key that starts with <code>wl_</code>. The key is shown once; only its SHA-256 hash is stored, so it cannot be shown again.</p></div></li>
-      <li><div><h3>You log the CLI in</h3>
+      <li><div><h2>You log the CLI in</h2>
         <p><code>whyline login</code> checks the key against the server, then saves the URL and key in <code>~/.config/whyline/config.json</code>. You can use the <code>WHYLINE_URL</code> and <code>WHYLINE_KEY</code> environment variables instead.</p></div></li>
-      <li><div><h3>Hooks capture events as you work</h3>
+      <li><div><h2>Hooks capture events as you work</h2>
         <p>Two hook types feed the same API:</p>
         <ul>
           <li><strong>Claude Code plugin.</strong> On every prompt you submit, a <code>prompt</code> event is sent. After every <code>Edit</code>, <code>Write</code>, <code>MultiEdit</code> or <code>NotebookEdit</code>, an <code>edit</code> event is sent with the file path.</li>
+          <li><strong>Cursor, Codex CLI and Gemini CLI hooks.</strong> The same <code>prompt</code> and <code>edit</code> events, from each agent's own hook system (<a href="/docs#other-agents">setup</a>).</li>
           <li><strong>Git post-commit hook</strong> (installed by <code>whyline init</code>). After every commit, a <code>commit</code> event is sent with the hash, author email, message and changed files.</li>
         </ul></div></li>
-      <li><div><h3>Commits pick up the prompts that produced them</h3>
-        <p>Claude Code edits are also remembered locally in <code>~/.config/whyline/edits.jsonl</code>. When a commit includes files from those edits, the commit event carries the prompts from the same Claude Code session, and the agent is recorded as <code>claude-code</code> even without a trailer. Local records older than a day are dropped.</p>
-        <p>For other agents there is no prompt link. The agent comes from the commit message: a <code>Co-Authored-By:</code> or <code>AI-Agent:</code> trailer that identifies claude-code (Claude), cursor, copilot, codex, gemini, aider, devin or windsurf itself, not a person who shares its name. A commit with no match is recorded as <code>none</code>.</p></div></li>
-      <li><div><h3>You ask why</h3>
+      <li><div><h2>Commits pick up the prompts that produced them</h2>
+        <p>Agent edits are also remembered locally in <code>~/.config/whyline/edits.jsonl</code>. When a commit includes files from those edits, the commit event carries the prompts from the same session, and the commit is recorded as that agent even without a trailer. Local records older than a day are dropped.</p>
+        <p>For other agents there is no prompt link. The agent comes from the commit message: a <code>Co-Authored-By:</code>, <code>AI-Agent:</code> or <code>Assisted-by:</code> trailer that identifies claude-code (Claude), cursor, copilot, codex, gemini, aider, devin or windsurf itself, not a person who shares its name. A commit with no match is recorded as <code>none</code>.</p></div></li>
+      <li><div><h2>You ask why</h2>
         <p><code>whyline blame src/orders.ts:2</code> runs <code>git blame</code> on that line to get the commit, then asks the API for the event recorded for that commit. It prints the agent, author, time, commit message and, if one was linked, the prompt.</p>
         <div class="code" data-nocopy><span class="label">Example output</span><pre><span class="c">$ whyline blame src/orders.ts:2</span>
 src/orders.ts:2  const amount_cents = Math.round(order.total * 100);
@@ -70,7 +72,7 @@ src/orders.ts:2  const amount_cents = Math.round(order.total * 100);
   Prompt:
     store money as integer cents</pre></div>
         <p>That output comes from a real run against a local demo repository: one Claude Code prompt, one edit, one commit.</p></div></li>
-      <li><div><h3>You read the rest in the dashboard or CLI</h3>
+      <li><div><h2>You read the rest in the dashboard or CLI</h2>
         <p><code>whyline events</code> lists recent events. The <a href="/app">dashboard</a> shows the newest 500 events in a timeline you can filter by file, prompt, agent, author or commit, and <strong>Export CSV</strong> downloads the full history.</p></div></li>
     </ol>
   </div>
@@ -100,7 +102,7 @@ src/orders.ts:2  const amount_cents = Math.round(order.total * 100);
       <p>git blame tells you who. Whyline tells you why.</p>
     </div>
     <nav aria-label="Footer: product"><h2>Product</h2><ul>
-      <li><a href="/how-it-works">How it works</a></li><li><a href="/features">Features</a></li><li><a href="/app">Dashboard</a></li></ul></nav>
+      <li><a href="/how-it-works">How it works</a></li><li><a href="/features">Features</a></li><li><a href="/app">Dashboard</a></li><li><a href="/blog">Blog</a></li></ul></nav>
     <nav aria-label="Footer: documentation"><h2>Docs</h2><ul>
       <li><a href="/docs">Getting started</a></li>
       <li><a href="/docs/api">API reference</a></li>

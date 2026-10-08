@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>What an audit trail for AI-written code should record</title>
+<meta name="description" content="The fields to record for every AI-assisted change, where to keep them, how to handle prompts that hold secrets, and what the EU AI Act does and does not say.">
+<link rel="canonical" href="https://whyline.wrklyst.com/blog/ai-code-audit-trail">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Whyline">
+<meta property="og:title" content="What an audit trail for AI-written code should record">
+<meta property="og:description" content="The fields to record for every AI-assisted change, where to keep them, how to handle prompts that hold secrets, and what the EU AI Act does and does not say.">
+<meta property="og:url" content="https://whyline.wrklyst.com/blog/ai-code-audit-trail">
+<meta property="og:image" content="https://whyline.wrklyst.com/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Whyline: git blame tells you who. Whyline tells you why.">
+<meta property="article:published_time" content="2026-10-08">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/style.css">
+<script>document.documentElement.classList.add('js')</script>
+<script src="/site.js" defer></script>
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"BlogPosting","headline":"What an audit trail for AI-written code should record","description":"The fields to record for every AI-assisted change, where to keep them, how to handle prompts that hold secrets, and what the EU AI Act does and does not say.","datePublished":"2026-10-08","dateModified":"2026-10-08","image":"https://whyline.wrklyst.com/og.png","mainEntityOfPage":"https://whyline.wrklyst.com/blog/ai-code-audit-trail","author":{"@type":"Organization","name":"Whyline","url":"https://whyline.wrklyst.com/"},"publisher":{"@type":"Organization","name":"Whyline","url":"https://whyline.wrklyst.com/"}},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://whyline.wrklyst.com/"},{"@type":"ListItem","position":2,"name":"Blog","item":"https://whyline.wrklyst.com/blog"},{"@type":"ListItem","position":3,"name":"What an audit trail for AI-written code should record","item":"https://whyline.wrklyst.com/blog/ai-code-audit-trail"}]}]}</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="container nav">
+    <a class="brand" href="/"><img src="/logo.svg" alt="" width="28" height="28">Whyline</a>
+    <button type="button" class="btn menu-btn" aria-expanded="false" aria-controls="site-nav">Menu</button>
+    <nav class="nav-links" id="site-nav" aria-label="Main">
+      <a href="/how-it-works">How it works</a>
+      <a href="/features">Features</a>
+      <a href="/docs">Docs</a>
+      <a href="/blog">Blog</a>
+      <a href="https://github.com/Gauravkumar6617/whyline" rel="noopener">GitHub</a>
+      <a class="btn primary" href="/app">Open dashboard</a>
+    </nav>
+  </div>
+</header>
+<main id="main">
+<div class="container">
+  <article class="prose post">
+    <p class="muted"><a href="/blog">Blog</a> · <time datetime="2026-10-08">October 8, 2026</time></p>
+    <h1>What an audit trail for AI-written code should record</h1>
+    <p class="lead">Sooner or later someone asks why a piece of code exists: during an incident, a security review or an audit. If an agent wrote it, part of the answer is a prompt that git never saw.</p>
+
+    <h2 id="questions">Start from the questions</h2>
+    <p>An audit trail is only useful if it answers the questions people actually ask. For AI-assisted code they are usually:</p>
+    <ol>
+      <li>Which changes did an AI agent make, and which agent?</li>
+      <li>Who asked for them, and what did they ask?</li>
+      <li>What else changed in the same session?</li>
+      <li>Who reviewed the change before it shipped?</li>
+    </ol>
+
+    <h2 id="fields">The minimum record</h2>
+    <div class="table-wrap" role="region" aria-label="Fields to record" tabindex="0"><table>
+      <thead><tr><th>Field</th><th>Why it matters</th></tr></thead>
+      <tbody>
+        <tr><td>Agent</td><td>Whose behaviour to look at, and a way to compare agents.</td></tr>
+        <tr><td>Prompt, or that there was one</td><td>The intent behind the change. Without it you are guessing from the diff.</td></tr>
+        <tr><td>Files</td><td>How far one request reached.</td></tr>
+        <tr><td>Commit</td><td>Joins the record to git history, so it can be found from any line with <code>git blame</code>.</td></tr>
+        <tr><td>Author</td><td>The person who ran the agent and committed the result.</td></tr>
+        <tr><td>Time</td><td>When it happened, taken on the developer's machine so work done offline keeps its real time.</td></tr>
+      </tbody></table></div>
+    <p>Review is the one question this list leaves to your code host: pull request approvals already record who reviewed what.</p>
+
+    <h2 id="where">Where to keep it</h2>
+    <ul>
+      <li><strong>In the repository</strong> (<a href="/blog/ai-commit-trailers">commit trailers</a>, git notes, a separate branch): travels with the code. Anyone who can read the code can read the record, and rewriting history can rewrite the record too.</li>
+      <li><strong>Outside the repository</strong> (a service): searchable across repositories, with its own access control, and unaffected by a force push. It is one more system to run and to trust.</li>
+    </ul>
+    <p>The two combine well: a trailer in the commit as a quick signal anyone can see, and a separate store for the prompts.</p>
+
+    <h2 id="privacy">Prompts are sensitive data</h2>
+    <p>Prompts can contain an API key pasted in while debugging, customer data, or plans that are not public yet. Decide three things before you start recording them:</p>
+    <ul>
+      <li><strong>Full text or not.</strong> Recording that a prompt happened, without its text, still shows that a change was AI-assisted. In Whyline that is <code>--no-prompts</code>.</li>
+      <li><strong>Who can read them.</strong> In Whyline, anyone with the workspace key can read everything in the workspace, so share the key as you would a password.</li>
+      <li><strong>How long to keep them.</strong> Whyline keeps events until you delete them from the database yourself; there is no retention setting yet.</li>
+    </ul>
+    <p>The <a href="/docs/data-and-privacy">data and privacy</a> page lists exactly what the CLI sends and keeps.</p>
+
+    <h2 id="regulation">What regulation says</h2>
+    <p>Much of what is written about “AI audit trail requirements” comes from vendors, this blog included, so read it with care. The text most often cited is Article 12 of the EU AI Act, which requires <em>high-risk</em> AI systems to allow the automatic recording of events (logs) over their lifetime. It applies to those systems themselves and says nothing specific about prompts or about code written with an assistant. Whether it, or any other rule, applies to how you build software is a question for your counsel.</p>
+    <p>The practical case does not depend on regulation: when an AI-written change causes an incident, the record of what was asked is what lets you find the cause.</p>
+
+    <h2 id="whyline">How Whyline covers it</h2>
+    <p>Each Whyline event records the agent, prompt, files, commit, author and time. <code>whyline blame</code> goes from a line to its record, the dashboard filters the timeline by file, prompt, agent, author or commit, and Export CSV hands over the full history. Its limits, stated plainly:</p>
+    <ul>
+      <li>A workspace has a single API key, with no per-person accounts or permissions.</li>
+      <li>Events cannot be changed or deleted through the API or dashboard, but they are not tamper-evident: anyone with access to the database can change them.</li>
+      <li>Prompts are linked for agents with a hook (Claude Code, Cursor, Codex CLI, Gemini CLI); other agents are recorded from their commit trailers.</li>
+    </ul>
+    <div class="cta">
+      <a class="btn primary" href="/app#new">Create a workspace</a>
+      <a class="btn" href="/docs">Read the docs</a>
+    </div>
+  </article>
+</div>
+</main>
+<footer class="site-footer">
+  <div class="container footer-grid">
+    <div>
+      <a class="brand" href="/"><img src="/logo.svg" alt="" width="28" height="28">Whyline</a>
+      <p>git blame tells you who. Whyline tells you why.</p>
+    </div>
+    <nav aria-label="Footer: product"><h2>Product</h2><ul>
+      <li><a href="/how-it-works">How it works</a></li><li><a href="/features">Features</a></li><li><a href="/app">Dashboard</a></li><li><a href="/blog">Blog</a></li></ul></nav>
+    <nav aria-label="Footer: documentation"><h2>Docs</h2><ul>
+      <li><a href="/docs">Getting started</a></li>
+      <li><a href="/docs/api">API reference</a></li>
+      <li><a href="/docs/data-and-privacy">Data and privacy</a></li>
+      <li><a href="/docs/self-hosting">Self-hosting</a></li></ul></nav>
+    <nav aria-label="Footer: project"><h2>Project</h2><ul>
+      <li><a href="https://github.com/Gauravkumar6617/whyline" rel="noopener">Source on GitHub</a></li><li><a href="https://github.com/Gauravkumar6617/whyline/issues" rel="noopener">Report an issue</a></li></ul></nav>
+  </div>
+</footer>
+</body>
+</html>

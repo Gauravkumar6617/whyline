@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Get started with Whyline</title>
+<title>Get started with Whyline: install, connect agents, blame</title>
 <meta name="description" content="Install the Whyline CLI from GitHub, log in with a workspace key, connect Claude Code or the git hook, and use whyline blame to see why a line exists.">
 <link rel="canonical" href="https://whyline.wrklyst.com/docs">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Whyline">
-<meta property="og:title" content="Get started with Whyline">
+<meta property="og:title" content="Get started with Whyline: install, connect agents, blame">
 <meta property="og:description" content="Install the Whyline CLI from GitHub, log in with a workspace key, connect Claude Code or the git hook, and use whyline blame to see why a line exists.">
 <meta property="og:url" content="https://whyline.wrklyst.com/docs">
 <meta property="og:image" content="https://whyline.wrklyst.com/og.png">
@@ -32,6 +32,7 @@
       <a href="/how-it-works">How it works</a>
       <a href="/features">Features</a>
       <a href="/docs" aria-current="page">Docs</a>
+      <a href="/blog">Blog</a>
       <a href="https://github.com/Gauravkumar6617/whyline" rel="noopener">GitHub</a>
       <a class="btn primary" href="/app">Open dashboard</a>
     </nav>
@@ -73,11 +74,37 @@
 /plugin install whyline@whyline</pre></div>
     <p>The plugin runs <code>whyline hook claude-code</code> after each prompt and after each Edit, Write, MultiEdit or NotebookEdit. It needs the CLI from step 2. Also run <code>whyline init</code> (below) in each repository so commits are recorded and linked to those prompts.</p>
 
-    <h2 id="git-hook">4b. Connect any agent (commits)</h2>
+    <h2 id="other-agents">4b. Connect Cursor, Codex or Gemini CLI (prompts, edits and commits)</h2>
+    <p>Add Whyline to the agent's own hooks. These files are per user, so they cover every project; if the file already exists, merge these entries into it. Like the Claude Code plugin, they need the CLI from step 2, and <code>whyline init</code> (below) in each repository so commits are recorded and linked to the prompts.</p>
+    <p><strong>Cursor</strong>: <code>~/.cursor/hooks.json</code></p>
+    <div class="code" data-copy-label="Copy Cursor hooks"><pre>{
+  "version": 1,
+  "hooks": {
+    "beforeSubmitPrompt": [{ "command": "whyline hook cursor" }],
+    "afterFileEdit": [{ "command": "whyline hook cursor" }]
+  }
+}</pre></div>
+    <p><strong>Codex CLI</strong>: <code>~/.codex/hooks.json</code>. Codex runs a new hook only after you trust it: open <code>/hooks</code> in Codex once.</p>
+    <div class="code" data-copy-label="Copy Codex hooks"><pre>{
+  "hooks": {
+    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "whyline hook codex", "timeout": 5 }] }],
+    "PostToolUse": [{ "matcher": "apply_patch", "hooks": [{ "type": "command", "command": "whyline hook codex", "timeout": 5 }] }]
+  }
+}</pre></div>
+    <p><strong>Gemini CLI</strong>: <code>~/.gemini/settings.json</code></p>
+    <div class="code" data-copy-label="Copy Gemini CLI hooks"><pre>{
+  "hooks": {
+    "BeforeAgent": [{ "hooks": [{ "type": "command", "command": "whyline hook gemini", "timeout": 5000 }] }],
+    "AfterTool": [{ "matcher": "write_file|replace", "hooks": [{ "type": "command", "command": "whyline hook gemini", "timeout": 5000 }] }]
+  }
+}</pre></div>
+    <p>Codex edits are read from <code>apply_patch</code>, so files a Codex shell command changes are not recorded as edits. Cursor Tab completions are not recorded.</p>
+
+    <h2 id="git-hook">4c. Connect any agent (commits)</h2>
     <div class="code" data-copy-label="Copy init command"><pre>whyline init</pre></div>
-    <p>Run this in each repository. It adds a <code>post-commit</code> hook that records every commit. The agent is read from the commit message: a <code>Co-Authored-By:</code> or <code>AI-Agent:</code> trailer that identifies the agent itself, such as <code>Co-Authored-By: Claude &lt;noreply@anthropic.com&gt;</code>, <code>Co-Authored-By: Cursor Agent &lt;cursoragent@cursor.com&gt;</code> or <code>AI-Agent: cursor</code>. The recognised agents are claude-code (Claude), cursor, copilot, codex, gemini, aider, devin and windsurf. A co-author who only shares an agent's name, such as Devin Smith, is not treated as an agent. Without one, the commit is recorded as agent <code>none</code>.</p>
+    <p>Run this in each repository. It adds a <code>post-commit</code> hook that records every commit. If the commit includes files a connected agent edited (4a, 4b), it is recorded as that agent with the prompts behind it. Otherwise the agent is read from the commit message: a <code>Co-Authored-By:</code>, <code>AI-Agent:</code> or <code>Assisted-by:</code> trailer that identifies the agent itself, such as <code>Co-Authored-By: Claude &lt;noreply@anthropic.com&gt;</code>, <code>Co-Authored-By: Cursor Agent &lt;cursoragent@cursor.com&gt;</code> or <code>Assisted-by: Claude</code> (the trailer the Linux kernel asks for). The recognised agents are claude-code (Claude), cursor, copilot, codex, gemini, aider, devin and windsurf. A co-author who only shares an agent's name, such as Devin Smith, is not treated as an agent. Without one, the commit is recorded as agent <code>none</code>.</p>
     <p>The hook goes wherever git runs hooks, including a <code>core.hooksPath</code> directory. If a <code>post-commit</code> hook already exists, it must be an executable shell script: Whyline adds one line after its <code>#!</code> line and leaves the rest as it was. For any other hook (Node, Python, a binary, a symlink, or one that is not executable), init changes nothing, exits with an error and tells you to call <code>whyline hook git</code> from it yourself.</p>
-    <div class="callout"><strong>Your agent has to add the trailer</strong>Whyline does not add it for you. If your agent does not write one, add it to your commit message yourself, for example <code>AI-Agent: cursor</code>.</div>
+    <div class="callout"><strong>Your agent has to add the trailer</strong>Whyline does not add it for you. If your agent does not write one, add it to your commit message yourself, for example <code>AI-Agent: cursor</code>. The formats are explained in <a href="/blog/ai-commit-trailers">AI commit trailers</a>.</div>
 
     <h2 id="blame">5. Ask why</h2>
     <div class="code" data-copy-label="Copy blame command"><pre>whyline blame src/orders.ts:2</pre></div>
@@ -94,7 +121,7 @@ src/orders.ts:2  const amount_cents = Math.round(order.total * 100);
     <h2 id="view">6. View events</h2>
     <ul>
       <li><strong>CLI:</strong> <code>whyline events</code> prints one tab-separated line per event: id, time, agent, kind, author, and the first line of the summary or prompt. Add <code>--since &lt;id&gt;</code> for newer events only.</li>
-      <li><strong>Dashboard:</strong> open <a href="/app">/app</a>, paste your key, and filter the newest 500 events by file, prompt, agent, author or commit.</li>
+      <li><strong>Dashboard:</strong> open <a href="/app">/app</a>, paste your key, and filter the newest 500 events by file, prompt, agent, author or commit. The count line shows how many of the commits shown were AI-assisted, so filtering by an author or a path gives the share for just those.</li>
       <li><strong>CSV:</strong> choose <strong>Export CSV</strong> in the dashboard for the full history.</li>
     </ul>
 
@@ -109,7 +136,7 @@ src/orders.ts:2  const amount_cents = Math.round(order.total * 100);
         <tr><td><code>whyline init</code></td><td>Install the git post-commit hook in this repository.</td></tr>
         <tr><td><code>whyline blame &lt;file&gt;:&lt;line&gt;</code></td><td>Show the commit, agent and prompt behind a line.</td></tr>
         <tr><td><code>whyline events [--since &lt;id&gt;]</code></td><td>Show recent events.</td></tr>
-        <tr><td><code>whyline hook claude-code</code></td><td>Used by the Claude Code plugin. Reads hook JSON on stdin.</td></tr>
+        <tr><td><code>whyline hook claude-code|cursor|codex|gemini</code></td><td>Used by the agent's hooks. Reads hook JSON on stdin.</td></tr>
         <tr><td><code>whyline hook git</code></td><td>Used by the git hook.</td></tr>
       </tbody></table></div>
     <h3>Environment variables</h3>
@@ -129,7 +156,7 @@ src/orders.ts:2  const amount_cents = Math.round(order.total * 100);
       <p>git blame tells you who. Whyline tells you why.</p>
     </div>
     <nav aria-label="Footer: product"><h2>Product</h2><ul>
-      <li><a href="/how-it-works">How it works</a></li><li><a href="/features">Features</a></li><li><a href="/app">Dashboard</a></li></ul></nav>
+      <li><a href="/how-it-works">How it works</a></li><li><a href="/features">Features</a></li><li><a href="/app">Dashboard</a></li><li><a href="/blog">Blog</a></li></ul></nav>
     <nav aria-label="Footer: documentation"><h2>Docs</h2><ul>
       <li><a href="/docs">Getting started</a></li>
       <li><a href="/docs/api">API reference</a></li>

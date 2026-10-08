@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How to track AI-generated code in git</title>
+<meta name="description" content="git blame shows who committed a line, not that an AI agent wrote it or what it was asked. Three ways to record AI-generated code in git, and their limits.">
+<link rel="canonical" href="https://whyline.wrklyst.com/blog/track-ai-generated-code-in-git">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Whyline">
+<meta property="og:title" content="How to track AI-generated code in git">
+<meta property="og:description" content="git blame shows who committed a line, not that an AI agent wrote it or what it was asked. Three ways to record AI-generated code in git, and their limits.">
+<meta property="og:url" content="https://whyline.wrklyst.com/blog/track-ai-generated-code-in-git">
+<meta property="og:image" content="https://whyline.wrklyst.com/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Whyline: git blame tells you who. Whyline tells you why.">
+<meta property="article:published_time" content="2026-10-08">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/style.css">
+<script>document.documentElement.classList.add('js')</script>
+<script src="/site.js" defer></script>
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"BlogPosting","headline":"How to track AI-generated code in git","description":"git blame shows who committed a line, not that an AI agent wrote it or what it was asked. Three ways to record AI-generated code in git, and their limits.","datePublished":"2026-10-08","dateModified":"2026-10-08","image":"https://whyline.wrklyst.com/og.png","mainEntityOfPage":"https://whyline.wrklyst.com/blog/track-ai-generated-code-in-git","author":{"@type":"Organization","name":"Whyline","url":"https://whyline.wrklyst.com/"},"publisher":{"@type":"Organization","name":"Whyline","url":"https://whyline.wrklyst.com/"}},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://whyline.wrklyst.com/"},{"@type":"ListItem","position":2,"name":"Blog","item":"https://whyline.wrklyst.com/blog"},{"@type":"ListItem","position":3,"name":"How to track AI-generated code in git","item":"https://whyline.wrklyst.com/blog/track-ai-generated-code-in-git"}]}]}</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="container nav">
+    <a class="brand" href="/"><img src="/logo.svg" alt="" width="28" height="28">Whyline</a>
+    <button type="button" class="btn menu-btn" aria-expanded="false" aria-controls="site-nav">Menu</button>
+    <nav class="nav-links" id="site-nav" aria-label="Main">
+      <a href="/how-it-works">How it works</a>
+      <a href="/features">Features</a>
+      <a href="/docs">Docs</a>
+      <a href="/blog">Blog</a>
+      <a href="https://github.com/Gauravkumar6617/whyline" rel="noopener">GitHub</a>
+      <a class="btn primary" href="/app">Open dashboard</a>
+    </nav>
+  </div>
+</header>
+<main id="main">
+<div class="container">
+  <article class="prose post">
+    <p class="muted"><a href="/blog">Blog</a> · <time datetime="2026-10-08">October 8, 2026</time></p>
+    <h1>How to track AI-generated code in git</h1>
+    <p class="lead">git blame tells you who committed a line. When an AI agent wrote it, that is half the answer: you also want to know which agent, and what it was asked to do.</p>
+
+    <h2 id="where-blame-stops">Where git blame stops</h2>
+    <p>Run <code>git blame</code> on a line an agent wrote and you get a commit hash, the developer who made the commit and a time. That is correct: a person ran the agent and committed the result. It leaves out what you need when the line looks wrong:</p>
+    <ul>
+      <li>Was it written by hand or by an agent, and which agent?</li>
+      <li>What was the agent asked to do? A line that rounds money reads differently once you know the request was “store money as integer cents”.</li>
+      <li>Which other files did the same request change?</li>
+    </ul>
+    <p>A good commit message sometimes answers these, but only if someone wrote it down. To answer them every time, the record has to be made when the change happens.</p>
+
+    <h2 id="three-ways">Three ways to keep the record</h2>
+    <h3>1. Commit trailers</h3>
+    <p>Many agents end their commit messages with a trailer such as <code>Co-Authored-By: Claude &lt;noreply@anthropic.com&gt;</code>, and some projects ask for <code>Assisted-by:</code> instead. Trailers are part of git history, so every clone has them and <code>git log</code> can search them. They name the agent, but not the prompt, and they exist only if the agent or the developer writes them. The formats are covered in <a href="/blog/ai-commit-trailers">commit trailers for AI coding agents</a>.</p>
+    <h3>2. Agent hooks</h3>
+    <p>Claude Code, Cursor, Codex CLI and Gemini CLI can run a command when you submit a prompt and after the agent edits a file. A hook can record the prompt and the files it touched, and link them to the commit that later includes those files. This is the only way to keep the prompt, because the prompt never reaches git.</p>
+    <h3>3. Where the record lives</h3>
+    <p>The record can be stored in the repository, in git notes or on a separate branch, or in a service outside it. In the repository it travels with the code, but git notes are not pushed or fetched unless you configure it, and the prompts can be read by anyone who can read the code. Outside the repository it can be searched across repositories and has its own access control, but it is one more system to run.</p>
+
+    <h2 id="with-whyline">Setting it up with Whyline</h2>
+    <p>Whyline uses all three: it records prompts and edits through agent hooks, reads trailers for every other commit, and keeps the record in a workspace outside the repository that your team shares. <a href="/how-it-works">How it works</a> walks through each step.</p>
+    <ol>
+      <li>Create a workspace in the <a href="/app#new">dashboard</a> and install the CLI, as in <a href="/docs#install">Getting started</a>.</li>
+      <li>Connect your agent: the <a href="/docs#claude-code">Claude Code plugin</a>, or a hook entry for <a href="/docs#other-agents">Cursor, Codex CLI or Gemini CLI</a>.</li>
+      <li>Run <code>whyline init</code> in each repository, so every commit is recorded.</li>
+      <li>Ask why a line exists:</li>
+    </ol>
+    <div class="code" data-nocopy><span class="label">Example output</span><pre><span class="c">$ whyline blame src/orders.ts:2</span>
+src/orders.ts:2  const amount_cents = Math.round(order.total * 100);
+  a7394e0b · claude-code · dev@example.com · 10/7/2026, 11:10:20 AM
+  add orders
+
+  Prompt:
+    store money as integer cents</pre></div>
+    <p>For a commit with no connected agent, Whyline reads the agent from its trailers. A commit with neither is recorded as agent <code>none</code>, so the timeline also shows which commits have no AI involvement on record.</p>
+
+    <h2 id="limits">What this does not tell you</h2>
+    <ul>
+      <li><strong>Attribution is per commit, not per line.</strong> A commit that mixes your edits with the agent's is attributed to the agent as a whole. Smaller commits give sharper answers.</li>
+      <li><strong>Some edits are not seen.</strong> Inline completions such as Cursor Tab, and files changed by a Codex shell command, are not recorded as edits.</li>
+      <li><strong>Rewritten history loses the prompts.</strong> Amending a commit on the same day keeps them. A rebase records the new commits again, with the agent from their trailers but without the prompts.</li>
+    </ul>
+    <div class="cta">
+      <a class="btn primary" href="/app#new">Create a workspace</a>
+      <a class="btn" href="/docs">Read the docs</a>
+    </div>
+  </article>
+</div>
+</main>
+<footer class="site-footer">
+  <div class="container footer-grid">
+    <div>
+      <a class="brand" href="/"><img src="/logo.svg" alt="" width="28" height="28">Whyline</a>
+      <p>git blame tells you who. Whyline tells you why.</p>
+    </div>
+    <nav aria-label="Footer: product"><h2>Product</h2><ul>
+      <li><a href="/how-it-works">How it works</a></li><li><a href="/features">Features</a></li><li><a href="/app">Dashboard</a></li><li><a href="/blog">Blog</a></li></ul></nav>
+    <nav aria-label="Footer: documentation"><h2>Docs</h2><ul>
+      <li><a href="/docs">Getting started</a></li>
+      <li><a href="/docs/api">API reference</a></li>
+      <li><a href="/docs/data-and-privacy">Data and privacy</a></li>
+      <li><a href="/docs/self-hosting">Self-hosting</a></li></ul></nav>
+    <nav aria-label="Footer: project"><h2>Project</h2><ul>
+      <li><a href="https://github.com/Gauravkumar6617/whyline" rel="noopener">Source on GitHub</a></li><li><a href="https://github.com/Gauravkumar6617/whyline/issues" rel="noopener">Report an issue</a></li></ul></nav>
+  </div>
+</footer>
+</body>
+</html>
